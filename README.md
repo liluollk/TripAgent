@@ -1,145 +1,98 @@
-# Trip Agent - 旅行规划助手
+# Trip Agent
 
 基于 Spring AI 的智能旅行规划助手，采用 **Plan-and-Execute + ReAct** 混合架构，支持多轮对话、自动工具调用、流式响应。
 
-## 技术栈
+## ✨ 特性
 
-- **后端**：Java 21 + Spring Boot 4.0.5 + Spring AI 2.0.0-M8
-- **AI 模型**：DeepSeek V4 Pro / V4 Flash
-- **数据库**：PostgreSQL 16
-- **外部 API**：和风天气、高德地图
-- **协议**：MCP（Model Context Protocol）
+- 🤖 **智能规划**：AI 自动分析需求，生成个性化旅行计划
+- 🔧 **自动工具调用**：通过 MCP 协议调用天气、景点、酒店、餐厅等工具
+- 💬 **多轮对话**：支持上下文理解，记住对话历史
+- 📡 **实时流式响应**：SSE 实时推送 Agent 推理过程
+- 🧠 **记忆系统**：短期/长期记忆，用户画像，已访问城市记录
+- 🔄 **混合架构**：Plan-and-Execute 全局规划 + ReAct 局部执行
 
-## 架构设计
-
-### Agent 系统
-
-采用 **Plan-and-Execute + ReAct** 混合架构：
-
-- **TripAgent**：主协调器，编排规划和执行阶段
-- **PlanningAgent**：使用完整 ReAct 循环生成旅行计划
-- **ExecutionAgent**：使用有限 ReAct（最多 3 次迭代）执行单个计划步骤
+## 🏗️ 架构
 
 ```
-用户请求
-    ↓
-TripAgent (协调器)
-    ↓
-PlanningAgent (ReAct 循环)
-    ├── Think: 分析需求
-    ├── Act: 调用工具获取信息
-    └── Observe: 收集结果，生成计划
-    ↓
-ExecutionAgent (有限 ReAct)
-    ├── 执行步骤 1
-    ├── 执行步骤 2
-    └── ...
-    ↓
-最终结果
+用户请求 → PlanningAgent → ExecutionAgent → MCP Tools → 结果
+            (制定计划)      (逐步执行)      (实际工具)
 ```
 
-### API
+### 核心组件
 
-统一接口：
+| 组件 | 职责 |
+|------|------|
+| `TripAgent` | 主协调器，编排规划和执行阶段 |
+| `PlanningAgent` | 使用 ReAct 循环生成旅行计划 |
+| `ExecutionAgent` | 使用有限 ReAct 执行单个计划步骤 |
+| `ToolRegistry` | MCP 工具注册中心 |
+| `ReActLoop` | ReAct 循环实现 |
 
-```
-POST /api/agent/chat
-Content-Type: application/json
-Accept: text/event-stream
-
-{
-    "userId": "user123",
-    "sessionId": "session456",  // 可选
-    "message": "计划一个3天的东京之旅"
-}
-```
-
-响应：SSE 流，包含以下事件类型：
-- `thinking`：Agent 的推理过程
-- `planning`：生成的计划
-- `executing`：步骤执行状态
-- `result`：最终结果
-- `error`：错误信息
-
-## 项目结构
-
-```
-Trip Agent/
-├── trip-agent/                    # 主项目（MCP Client）
-│   ├── src/main/java/com/tripagent/
-│   │   ├── agent/                 # Agent 类
-│   │   │   ├── core/              # 核心基础设施
-│   │   │   │   ├── Agent.java           # Agent 接口
-│   │   │   │   ├── AgentContext.java    # 执行上下文
-│   │   │   │   ├── AgentStep.java       # 步骤结果
-│   │   │   │   ├── ReActLoop.java       # ReAct 循环实现
-│   │   │   │   ├── ToolRegistry.java    # 工具注册表
-│   │   │   │   └── SseEventEmitter.java # SSE 事件发射器
-│   │   │   ├── planning/          # 规划 Agent
-│   │   │   │   ├── Plan.java           # 计划数据结构
-│   │   │   │   ├── PlanStep.java       # 计划步骤
-│   │   │   │   └── PlanningAgent.java  # 规划 Agent
-│   │   │   ├── execution/         # 执行 Agent
-│   │   │   │   ├── StepResult.java     # 步骤结果
-│   │   │   │   └── ExecutionAgent.java # 执行 Agent
-│   │   │   └── TripAgent.java     # 主协调器
-│   │   ├── config/                # 配置类
-│   │   ├── controller/            # 控制器
-│   │   ├── exception/             # 异常体系
-│   │   ├── model/                 # 数据模型
-│   │   ├── repository/            # 数据访问层
-│   │   ├── service/               # 服务层
-│   │   │   ├── SessionManager.java      # 会话管理
-│   │   │   ├── ChatMemoryService.java   # 聊天记忆接口
-│   │   │   └── impl/                    # 实现类
-│   │   └── utils/                 # 工具类
-│   └── src/main/resources/
-│       ├── application.yml
-│       └── db/schema.sql
-│
-├── trip-tools-server/             # MCP Server（独立项目）
-│   └── src/main/java/com/triptools/
-│       ├── tools/                 # 工具定义
-│       └── service/               # 服务实现
-│
-└── README.md
-```
-
-## 快速开始
+## 🚀 快速开始
 
 ### 环境要求
 
 - Java 21+
 - Maven 3.8+
-- Docker（用于 PostgreSQL）
+- PostgreSQL 12+（或 Docker）
 
-### 1. 启动数据库
+### 1. 克隆项目
 
+```bash
+git clone https://github.com/your-username/trip-agent.git
+cd trip-agent
+```
+
+### 2. 配置 API Keys
+
+项目需要以下 API Keys：
+
+| 服务 | 用途 | 获取方式 |
+|------|------|---------|
+| DeepSeek | AI 模型 | [DeepSeek 官网](https://platform.deepseek.com/) |
+| 和风天气 | 天气查询 | [和风天气开发平台](https://dev.qweather.com/) |
+| 高德地图 | 景点/地理信息 | [高德开放平台](https://lbs.amap.com/) |
+
+复制配置模板并填入你的 API Keys：
+
+```bash
+# 复制配置文件
+cp .env.example .env
+cp trip-agent/src/main/resources/application.yml.example trip-agent/src/main/resources/application.yml
+cp trip-tools-server/src/main/resources/application.yml.example trip-tools-server/src/main/resources/application.yml
+
+# 编辑 .env 文件，填入真实的 API Keys
+vim .env
+```
+
+`.env` 文件内容示例：
+```env
+DEEPSEEK_API_KEY=sk-your-deepseek-key
+QWEATHER_API_KEY=your-qweather-key
+QWEATHER_HOST=your-qweather-host
+QWEATHER_GEO_HOST=your-qweather-geo-host
+AMAP_API_KEY=your-amap-key
+```
+
+### 3. 启动数据库
+
+使用 Docker（推荐）：
 ```bash
 docker run -d \
   --name trip-agent-postgres \
   -e POSTGRES_PASSWORD=postgres \
   -p 5432:5432 \
   postgres:16
-```
 
-创建数据库：
-```bash
+# 创建数据库
 docker exec trip-agent-postgres psql -U postgres -c "CREATE DATABASE tripagent;"
 ```
 
-### 2. 配置环境变量
+或使用本地 PostgreSQL，创建 `tripagent` 数据库。
 
-```bash
-export DEEPSEEK_API_KEY=your-deepseek-api-key
-export QWEATHER_API_KEY=your-qweather-api-key
-export AMAP_API_KEY=your-amap-api-key
-```
+### 4. 启动服务
 
-或在 `application.yml` 中直接修改。
-
-### 3. 启动 MCP Server
-
+**启动 MCP Server**（工具服务）：
 ```bash
 cd trip-tools-server
 mvn spring-boot:run
@@ -147,27 +100,51 @@ mvn spring-boot:run
 
 MCP Server 运行在 `http://localhost:8081`
 
-### 4. 启动主项目
-
+**启动 Trip Agent**（新终端）：
 ```bash
 cd trip-agent
 mvn spring-boot:run
 ```
 
-主项目运行在 `http://localhost:8080`
+Trip Agent 运行在 `http://localhost:8080`
 
-## API 接口
-
-### 统一聊天接口（SSE 流式响应）
+### 5. 测试 API
 
 ```bash
+# 旅行规划
 curl -X POST http://localhost:8080/api/agent/chat \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{"userId": "test", "message": "计划一个3天的东京之旅"}'
+  -d '{"userId": "test", "message": "我想去南京玩3天，帮我规划一下"}'
+
+# 健康检查
+curl http://localhost:8080/api/agent/health
 ```
 
-响应示例（SSE 流）：
+## 📚 API 文档
+
+启动服务后访问 Swagger UI：
+- URL: http://localhost:8080/swagger-ui/index.html
+
+### 主要接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/agent/chat` | POST | 旅行规划（SSE 流式响应） |
+| `/api/agent/health` | GET | 健康检查 |
+| `/api/agent/sessions` | GET | 活跃会话数 |
+
+### 请求示例
+
+```json
+{
+  "userId": "user123",
+  "sessionId": "session456",  // 可选，用于多轮对话
+  "message": "计划一个3天的东京之旅"
+}
+```
+
+### 响应格式（SSE 流）
+
 ```
 event:thinking
 data:Starting planning phase...
@@ -178,118 +155,97 @@ data:{"planId":"...","cities":["Tokyo"],"steps":[...]}
 event:executing
 data:{"step":"Check weather","status":"executing"}
 
-event:executing
-data:{"step":"Check weather","status":"completed"}
-
 event:result
 data:Travel Plan Summary...
 ```
 
-### 健康检查
+## 🛠️ 技术栈
 
-```bash
-curl http://localhost:8080/api/agent/health
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Java | 21 | 编程语言 |
+| Spring Boot | 4.0.5 | 应用框架 |
+| Spring AI | 2.0.0-M8 | AI 框架 |
+| DeepSeek | V4 Pro/Flash | AI 模型 |
+| PostgreSQL | 16 | 数据库 |
+| Caffeine | - | 缓存 |
+| MCP | - | 工具协议 |
+| SpringDoc OpenAPI | 3.0.3 | API 文档 |
+
+## 📁 项目结构
+
+```
+trip-agent/
+├── trip-agent/                    # 主项目（MCP Client）
+│   ├── src/main/java/com/tripagent/
+│   │   ├── agent/                 # Agent 核心
+│   │   │   ├── core/             # 基础组件
+│   │   │   ├── planning/         # 规划代理
+│   │   │   └── execution/        # 执行代理
+│   │   ├── controller/           # REST 控制器
+│   │   ├── service/              # 业务服务
+│   │   ├── model/                # 数据模型
+│   │   ├── repository/           # 数据访问
+│   │   ├── config/               # 配置类
+│   │   ├── exception/            # 异常处理
+│   │   └── utils/                # 工具类
+│   └── src/main/resources/
+│       └── application.yml.example
+│
+├── trip-tools-server/             # MCP Server（工具服务）
+│   └── src/main/java/com/triptools/
+│       ├── tools/                 # MCP 工具实现
+│       └── service/               # 服务实现
+│
+└── README.md
 ```
 
-### 活跃会话数
+## 🔧 核心功能
 
-```bash
-curl http://localhost:8080/api/agent/sessions
-```
+### 智能规划
 
-## 核心功能
+AI 自动分析用户需求，调用工具获取实时信息，生成结构化旅行计划。
 
-### 1. 智能规划（Plan-and-Execute）
-
-采用 Plan-and-Execute 模式，先生成完整计划，再逐步执行：
-- 自动分析用户需求
-- 调用工具获取实时信息（天气、景点、酒店、餐厅）
-- 生成结构化旅行计划
-
-### 2. ReAct 推理循环
+### ReAct 推理
 
 Agent 使用 ReAct（Reasoning + Acting）循环：
 - **Think**：分析当前状态，决定下一步行动
 - **Act**：调用工具获取信息
 - **Observe**：处理工具返回结果
-- 循环直到任务完成
 
-### 3. 多轮对话
+### 记忆系统
 
-支持上下文理解，AI 能记住之前的对话内容。
+- **短期记忆**：当前对话上下文
+- **长期记忆**：用户历史偏好
+- **用户画像**：旅行偏好、已访问城市
 
-```
-用户：计划一个3天的东京之旅
-AI：[生成计划...]
+### 工具集成
 
-用户：预算控制在5000元以内
-AI：[调整计划，考虑预算...]
-```
+通过 MCP 协议集成外部服务：
+- `getWeather` - 天气查询
+- `searchAttractions` - 景点搜索
+- `searchHotels` - 酒店搜索
+- `searchRestaurants` - 餐厅搜索
+- `searchTransportation` - 交通查询
 
-### 4. 自动工具调用
+## 🤝 贡献
 
-通过 MCP 协议自动调用外部工具：
-- `getWeather` - 获取天气
-- `searchAttractions` - 搜索景点
-- `searchHotels` - 搜索酒店
-- `searchRestaurants` - 搜索餐厅
+欢迎贡献！请遵循以下步骤：
 
-### 5. 实时流式响应
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
 
-使用 SSE 实现实时推送，用户可以观察 Agent 的推理过程：
-- 规划阶段的思考过程
-- 工具调用的实时状态
-- 执行进度的实时更新
+## 📄 许可证
 
-### 6. 多用户支持
+MIT License - 详见 [LICENSE](LICENSE) 文件
 
-使用 ConcurrentHashMap 管理多个用户会话，支持并发访问。
+## 🙏 致谢
 
-## 配置说明
-
-### application.yml
-
-```yaml
-spring:
-  ai:
-    deepseek:
-      api-key: ${DEEPSEEK_API_KEY}
-      base-url: https://api.deepseek.com
-    mcp:
-      client:
-        type: SYNC
-        streamable-http:
-          connections:
-            trip-tools:
-              url: http://localhost:8081
-
-trip:
-  weather:
-    api-key: ${QWEATHER_API_KEY}
-    host: km49vk34x2.re.qweatherapi.com
-    geo-host: km49vk34x2.re.qweatherapi.com
-  amap:
-    api-key: ${AMAP_API_KEY}
-  agent:
-    memory:
-      window-size: 20
-      keep-recent: 10
-```
-
-## 开发说明
-
-### 构建
-
-```bash
-mvn clean package
-```
-
-### 运行测试
-
-```bash
-mvn test
-```
-
-## 许可证
-
-MIT License
+- [Spring AI](https://spring.io/projects/spring-ai) - AI 框架
+- [DeepSeek](https://platform.deepseek.com/) - AI 模型
+- [MCP](https://modelcontextprotocol.io/) - 工具协议
+- [和风天气](https://dev.qweather.com/) - 天气 API
+- [高德地图](https://lbs.amap.com/) - 地图 API
