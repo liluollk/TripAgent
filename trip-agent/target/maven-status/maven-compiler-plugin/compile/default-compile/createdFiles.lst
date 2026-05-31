@@ -1,3 +1,4 @@
+com\tripagent\config\Knife4jConfig.class
 com\tripagent\agent\TripAgent.class
 com\tripagent\utils\McpToolHelper.class
 com\tripagent\agent\execution\StepResult.class

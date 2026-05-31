@@ -64,12 +64,16 @@ logging:
     org.springframework.ai: INFO
     com.tripagent: DEBUG
 
-# Knife4j Configuration
+# Swagger Configuration
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
   api-docs:
     path: /v3/api-docs
+    groups:
+      enabled: true
 
 # Custom Configuration
 trip:

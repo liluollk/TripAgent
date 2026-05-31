@@ -5,6 +5,12 @@ import com.tripagent.agent.core.AgentContext;
 import com.tripagent.agent.core.SseEventEmitter;
 import com.tripagent.model.dto.ChatRequest;
 import com.tripagent.service.SessionManager;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/agent")
 @RequiredArgsConstructor
+@Tag(name = "Trip Agent API", description = "AI 旅行规划助手接口")
 public class TripController {
 
     private final TripAgent tripAgent;
@@ -30,6 +37,17 @@ public class TripController {
      * Unified chat endpoint with SSE streaming
      */
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(
+        summary = "AI 旅行规划对话",
+        description = "发送旅行需求，AI Agent 将通过 SSE 流式返回规划过程和结果。包含 PlanningAgent 计划生成和 ExecutionAgent 步骤执行。",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "SSE 流式响应",
+                content = @Content(mediaType = MediaType.TEXT_EVENT_STREAM_VALUE)
+            )
+        }
+    )
     public SseEmitter chat(@Valid @RequestBody ChatRequest request) {
         log.info("Received chat request from user: {}", request.getUserId());
 
