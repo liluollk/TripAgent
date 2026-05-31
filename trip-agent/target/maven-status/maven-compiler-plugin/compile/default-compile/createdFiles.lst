@@ -1,8 +1,8 @@
-com\tripagent\config\Knife4jConfig.class
 com\tripagent\agent\TripAgent.class
 com\tripagent\utils\McpToolHelper.class
 com\tripagent\agent\execution\StepResult.class
 com\tripagent\service\impl\ChatMemoryServiceImpl.class
+com\tripagent\config\SwaggerConfig.class
 com\tripagent\repository\UserVisitedCityRepository.class
 com\tripagent\controller\TripController.class
 com\tripagent\repository\UserProfileRepository.class

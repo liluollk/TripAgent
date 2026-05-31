@@ -12,9 +12,9 @@ C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\agent\p
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\agent\TripAgent.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\AsyncConfig.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\ChatMemoryConfig.java
-C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\Knife4jConfig.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\ModelConfig.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\RetryConfig.java
+C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\config\SwaggerConfig.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\controller\TripController.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\exception\BusinessException.java
 C:\Users\L3553\Desktop\Trip Agent\trip-agent\src\main\java\com\tripagent\exception\ErrorCode.java
