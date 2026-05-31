@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.tripagent.agent.TripAgentIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 34.79 s -- in com.tripagent.agent.TripAgentIntegrationTest

@@ -96,7 +96,6 @@ public class ToolRegistry {
 
     /**
      * 将纯文本输入包装为 MCP 工具所需的 JSON 格式
-     * 所有工具都接受单个 city 参数
      */
     private String wrapInputToJson(String toolName, String input) {
         // 如果已经是有效 JSON，直接返回
