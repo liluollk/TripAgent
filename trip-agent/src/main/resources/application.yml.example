@@ -1,0 +1,94 @@
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: text/plain,text/css,application/json,application/javascript,text/xml,application/xml,text/csv
+    min-response-size: 1024
+
+spring:
+  application:
+    name: trip-agent
+
+  ai:
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:your-deepseek-api-key-here}
+      chat:
+        options:
+          model: deepseek-v4-pro
+          temperature: 0.7
+
+  mcp:
+    client:
+      enabled: true
+      request-timeout: 120s
+      type: SYNC
+      stdio:
+        servers: []
+      streamable-http:
+        connections:
+          trip-tools:
+            url: ${MCP_SERVER_URL:http://localhost:8081/mcp}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/trip_memory}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:your-database-password-here}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+  mvc:
+    async:
+      request-timeout: 300000
+
+# Caffeine Cache
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=5m
+    cache-names:
+      - weather
+      - scenicSpots
+      - food
+      - hotels
+      - transportation
+
+# Swagger Configuration
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
+
+# Logging
+logging:
+  level:
+    com.tripagent: DEBUG
+    io.modelcontextprotocol: DEBUG
+    org.springframework.ai.mcp: DEBUG
+    org.springframework.retry: DEBUG
+
+# Trip Agent Config
+trip:
+  agent:
+    max-steps: 10
+    step-timeout: 60000
+  weather:
+    api-key: ${QWEATHER_API_KEY:your-qweather-api-key-here}
+    host: ${QWEATHER_HOST:your-qweather-host-here}
+    geo-host: ${QWEATHER_GEO_HOST:your-qweather-geo-host-here}
+  amap:
+    api-key: ${AMAP_API_KEY:your-amap-api-key-here}

@@ -3,6 +3,7 @@ target/
 *.jar
 *.war
 *.ear
+lib/
 
 # IDE
 .idea/
@@ -15,6 +16,13 @@ target/
 # Logs
 *.log
 logs/
+
+# Sensitive Config (contain API keys)
+application.yml
+application.properties
+application-*.yml
+!application.yml.example
+!application-test.yml
 
 # Environment
 .env
