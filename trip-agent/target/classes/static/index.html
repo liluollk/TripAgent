@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Agent - 旅行规划助手</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <span class="logo">🌍</span>
+            <h1>Trip Agent</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-btn active" data-tab="chat">
+                <span class="nav-icon">💬</span>
+                <span>对话</span>
+            </button>
+            <button class="nav-btn" data-tab="plan">
+                <span class="nav-icon">🗺️</span>
+                <span>旅行规划</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn-clear" onclick="clearHistory()">🗑️ 清除历史</button>
+        </div>
+    </aside>
+
+    <!-- 主区域 -->
+    <main class="main">
+        <!-- ===== 对话面板 ===== -->
+        <section id="panel-chat" class="panel active">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome">
+                    <div class="welcome-icon">✈️</div>
+                    <h2>你好，我是 Trip Agent</h2>
+                    <p>你的 AI 旅行规划助手。告诉我你想去哪里，我来帮你规划！</p>
+                    <div class="quick-prompts">
+                        <button onclick="quickChat('推荐一个周末短途旅行目的地')">🌴 周末短途</button>
+                        <button onclick="quickChat('3天成都旅行，预算5000')">🐼 成都3日游</button>
+                        <button onclick="quickChat('日本东京7天行程规划')">🗼 东京7日游</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="chat-input-wrap">
+                    <textarea id="chatInput" placeholder="告诉我你的旅行计划..." rows="1"
+                              onkeydown="handleChatKey(event)"></textarea>
+                    <button class="btn-send" onclick="sendChat()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 规划面板 ===== -->
+        <section id="panel-plan" class="panel">
+            <!-- 输入区：自然语言 -->
+            <div class="plan-input" id="planInput">
+                <div class="plan-input-header">
+                    <h2>🗺️ 旅行规划</h2>
+                    <p class="form-desc">用自然语言描述你的旅行需求，AI Agent 将分步为你规划</p>
+                </div>
+                <div class="plan-input-wrap">
+                    <textarea id="planText" rows="3"
+                              placeholder="例如：3天成都旅行，预算5000，2个人，想吃火锅看熊猫"
+                              onkeydown="handlePlanKey(event)"></textarea>
+                    <button class="btn-plan" onclick="submitPlan()">🚀 开始规划</button>
+                </div>
+                <div class="plan-hints">
+                    <span>试试：</span>
+                    <button onclick="fillPlan('3天成都旅行，预算5000，想吃火锅')">🐼 成都3日</button>
+                    <button onclick="fillPlan('东京7天深度游，预算15000，想去浅草寺和秋叶原')">🗼 东京7日</button>
+                    <button onclick="fillPlan('三亚5天海边度假，预算8000，带父母出行')">🏖️ 三亚5日</button>
+                </div>
+            </div>
+
+            <!-- Agent 流水线 -->
+            <div class="agent-pipeline" id="agentPipeline" style="display:none">
+                <!-- 用户输入回显 -->
+                <div class="pipeline-input">
+                    <span class="pipeline-label">你的需求</span>
+                    <span class="pipeline-text" id="pipelineInputText"></span>
+                </div>
+
+                <!-- 阶段 1：计划生成 -->
+                <div class="pipeline-phase" id="phase-planning">
+                    <div class="phase-header">
+                        <div class="phase-icon">🗺️</div>
+                        <div class="phase-title">
+                            <span class="phase-name">PlanningAgent</span>
+                            <span class="phase-desc">生成旅行计划</span>
+                        </div>
+                        <div class="phase-status" id="status-planning">等待中</div>
+                    </div>
+                    <div class="phase-body" id="body-planning"></div>
+                </div>
+
+                <!-- 阶段 2：步骤执行 -->
+                <div class="pipeline-phase" id="phase-execution">
+                    <div class="phase-header">
+                        <div class="phase-icon">🔍</div>
+                        <div class="phase-title">
+                            <span class="phase-name">ExecutionAgent</span>
+                            <span class="phase-desc">执行查询步骤</span>
+                        </div>
+                        <div class="phase-status" id="status-execution">等待中</div>
+                    </div>
+                    <div class="phase-body" id="body-execution"></div>
+                </div>
+
+                <!-- 阶段 3：结果汇总 -->
+                <div class="pipeline-phase" id="phase-result">
+                    <div class="phase-header">
+                        <div class="phase-icon">🎯</div>
+                        <div class="phase-title">
+                            <span class="phase-name">Result</span>
+                            <span class="phase-desc">最终结果</span>
+                        </div>
+                        <div class="phase-status" id="status-result">等待中</div>
+                    </div>
+                    <div class="phase-body" id="body-result"></div>
+                </div>
+
+                <!-- 重新规划 -->
+                <div class="pipeline-footer">
+                    <button class="btn-back" onclick="resetPlan()">← 重新规划</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/chat.js"></script>
+    <script src="/js/plan.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+com\tripcommon\model\vo\HotelInfo.class
+com\tripcommon\model\vo\PoiInfo.class
+com\tripcommon\model\vo\HotelInfo$HotelInfoBuilder.class
+com\tripcommon\model\vo\PoiInfo$PoiInfoBuilder.class
+com\tripcommon\model\vo\WeatherInfo.class
+com\tripcommon\model\vo\WeatherInfo$WeatherInfoBuilder.class

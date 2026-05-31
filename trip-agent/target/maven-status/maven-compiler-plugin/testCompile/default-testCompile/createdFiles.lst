@@ -1,0 +1,6 @@
+com\tripagent\model\DataResultTest$1Person.class
+com\tripagent\utils\JsonUtilsTest$ExtractJson.class
+com\tripagent\utils\JsonUtilsTest$ExtractJsonArray.class
+com\tripagent\agent\TripAgentIntegrationTest.class
+com\tripagent\model\DataResultTest.class
+com\tripagent\utils\JsonUtilsTest.class
