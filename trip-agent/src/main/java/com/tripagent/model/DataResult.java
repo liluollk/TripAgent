@@ -25,7 +25,7 @@ public class DataResult<T> {
      */
     private final String message;
 
-    // ========== 工厂方法 ==========
+    // 工厂方法
 
     public static <T> DataResult<T> of(T data) {
         return new DataResult<>(DataSource.REAL, data, null);
@@ -39,7 +39,7 @@ public class DataResult<T> {
         return new DataResult<>(DataSource.FAILED, null, reason);
     }
 
-    // ========== 便捷判断 ==========
+    // 便捷判断
 
     public boolean isReal() {
         return source == DataSource.REAL;
