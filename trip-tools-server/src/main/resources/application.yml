@@ -1,0 +1,35 @@
+# STDIO 模式不需要 Web 服务器
+# server:
+#   port: 8081
+
+spring:
+  main:
+    web-application-type: none  # 禁用 Web 服务器
+    banner-mode: off  # 禁用 banner 输出到 stdout
+    log-startup-info: false  # 禁用启动日志
+  application:
+    name: trip-tools-server
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: trip-tools
+        version: 1.0.0
+        type: SYNC
+        request-timeout: 120s
+
+# 日志输出到 stderr，避免干扰 STDIO 通信
+logging:
+  level:
+    org.springframework.ai.mcp: WARN
+    io.modelcontextprotocol: WARN
+  file:
+    path: ./logs  # 日志文件路径
+
+trip:
+  weather:
+    api-key: ${QWEATHER_API_KEY}
+    host: ${QWEATHER_HOST:km49vk34x2.re.qweatherapi.com}
+    geo-host: ${QWEATHER_GEO_HOST:km49vk34x2.re.qweatherapi.com}
+  amap:
+    api-key: ${AMAP_API_KEY}

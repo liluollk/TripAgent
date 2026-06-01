@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: trip-agent
+  autoconfigure:
+    exclude: org.springframework.ai.model.deepseek.autoconfigure.DeepSeekChatAutoConfiguration
+  http:
+    client:
+      timeout: 60s
+
+  # DeepSeek 配置
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+    tools:
+      enabled: true
+
+    # OpenAI 兼容配置 (千问 Embedding)
+    openai:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${QWEN_API_KEY}
+      embedding:
+        options:
+          model: text-embedding-v4
+          dimensions: 1024
+
+    # 向量存储配置 (pgvector)
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1024
+        table-name: trip_knowledge_v2
+
+    # MCP 客户端配置 (STDIO 模式)
+    mcp:
+      client:
+        enabled: true
+        name: trip-agent-client
+        version: 1.0.0
+        request-timeout: 60s
+        type: SYNC
+        stdio:
+          connections:
+            trip-tools:
+              command: cmd.exe
+              args:
+                - /c
+                - java
+                - -jar
+                - ../trip-tools-server/target/trip-tools-server-1.0.1.jar
+
+  # PostgreSQL 配置
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:trip_agent}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  # JDBC 配置
+  sql:
+    init:
+      mode: always
+
+# 服务器配置
+server:
+  port: ${SERVER_PORT:8080}
+
+# 日志配置
+logging:
+  level:
+    org.springframework.ai: INFO
+    com.tripagent: DEBUG
+
+# Swagger 配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    groups:
+      enabled: true
+
+# 业务配置
+trip:
+  weather:
+    api-key: ${QWEATHER_API_KEY:49833bc033c84af6b640f53d548386ba}
+    host: ${QWEATHER_HOST:km49vk34x2.re.qweatherapi.com}
+    geo-host: ${QWEATHER_GEO_HOST:km49vk34x2.re.qweatherapi.com}
+  amap:
+    api-key: ${AMAP_API_KEY:8c97dbdfd69aaff4225a66bb92626a72}
+  agent:
+    planning:
+      model: ${PLANNING_MODEL:deepseek-v4-pro}
+      temperature: ${PLANNING_TEMPERATURE:0.7}
+    execution:
+      model: ${EXECUTION_MODEL:deepseek-v4-flash}
+      temperature: ${EXECUTION_TEMPERATURE:0.3}
+  rag:
+    enabled: true
+    knowledge-file: classpath:knowledge/nanjing-local.md

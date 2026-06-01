@@ -18,7 +18,7 @@ lib/
 logs/
 
 # Sensitive Config (contain API keys)
-application.yml
+# application.yml  # 已移除硬编码 Key，可以提交
 application.properties
 application-*.yml
 !application.yml.example
