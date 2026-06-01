@@ -27,6 +27,7 @@ application-*.yml
 # Environment
 .env
 .env.local
+环境变量配置.md
 
 # OS
 .DS_Store
