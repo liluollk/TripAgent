@@ -4,14 +4,11 @@ import com.tripagent.agent.core.ToolRegistry;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.client.RestClient;
@@ -20,6 +17,10 @@ import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 
+/**
+ * 模型配置类
+ * 配置 DeepSeek API 客户端和聊天模型
+ */
 @Configuration
 public class ModelConfig {
 
@@ -48,14 +49,12 @@ public class ModelConfig {
     @Bean
     @Primary
     public DeepSeekApi deepSeekApi() {
-        // 配置同步 RestClient 超时
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(30000);
         requestFactory.setReadTimeout(180000);
         RestClient.Builder restClientBuilder = RestClient.builder()
                 .requestFactory(requestFactory);
 
-        // 配置响应式 WebClient 超时
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofSeconds(180));
         WebClient.Builder webClientBuilder = WebClient.builder()
@@ -70,7 +69,7 @@ public class ModelConfig {
     }
 
     /**
-     * Planning model - DeepSeek V4 Pro with higher temperature for creative planning
+     * 规划模型 - DeepSeek V4 Pro，较高温度用于创意规划
      */
     @Bean("planningChatModel")
     public DeepSeekChatModel planningChatModel(DeepSeekApi deepSeekApi) {
@@ -86,7 +85,7 @@ public class ModelConfig {
     }
 
     /**
-     * Execution model - DeepSeek V4 Flash with lower temperature for precise execution
+     * 执行模型 - DeepSeek V4 Flash，较低温度用于精确执行
      */
     @Bean("executionChatModel")
     public DeepSeekChatModel executionChatModel(DeepSeekApi deepSeekApi) {
@@ -103,7 +102,7 @@ public class ModelConfig {
     }
 
     /**
-     * Initialize tool registry on startup
+     * 启动时初始化工具注册表
      */
     @Bean
     public CommandLineRunner initToolRegistry(ToolRegistry toolRegistry) {

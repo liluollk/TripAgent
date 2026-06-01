@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- STDIO 模式：所有日志输出到 stderr，避免干扰 MCP 通信 -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 禁用 Spring Boot Banner -->
+    <logger name="org.springframework.boot.SpringApplication" level="WARN"/>
+
+    <!-- 根日志级别 -->
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>

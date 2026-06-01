@@ -1,6 +1,7 @@
 package com.tripagent.agent.planning;
 
 import com.tripagent.agent.core.*;
+import com.tripagent.knowledge.KnowledgeService;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -10,8 +11,8 @@ import reactor.core.publisher.Flux;
 import java.util.*;
 
 /**
- * Planning Agent with full ReAct loop.
- * Generates travel plans by reasoning and using tools.
+ * 旅行规划 Agent
+ * 使用 ReAct 循环生成旅行计划，集成 RAG 知识增强
  */
 @Slf4j
 @Component
@@ -20,55 +21,59 @@ public class PlanningAgent implements Agent {
     private final ChatModel planningChatModel;
     private final ReActLoop reActLoop;
     private final ObjectMapper objectMapper;
+    private final KnowledgeService knowledgeService;
 
     public PlanningAgent(
             @Qualifier("planningChatModel") ChatModel planningChatModel,
             ReActLoop reActLoop,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            KnowledgeService knowledgeService) {
         this.planningChatModel = planningChatModel;
         this.reActLoop = reActLoop;
         this.objectMapper = objectMapper;
+        this.knowledgeService = knowledgeService;
     }
 
     private static final String SYSTEM_PROMPT = """
-        You are a travel planning expert. Your job is to create detailed travel plans.
+        你是一个旅行规划专家，擅长创建详细的旅行计划。
 
-        When given a travel request, you should:
-        1. Think about what information you need
-        2. Use tools to gather information (weather, attractions, hotels, restaurants)
-        3. Create a comprehensive plan
+        当收到旅行请求时，你应该：
+        1. 分析用户需求
+        2. 使用工具收集信息（天气、景点、酒店、餐厅）
+        3. 结合本地人攻略知识，创建专业且实用的计划
 
-        To use a tool, respond with:
+        使用工具时，回复格式：
         ```tool
-        toolName:input
+        工具名:输入
         ```
 
-        Available tools:
-        - getWeather: Get weather for a city (input: city name)
-        - searchAttractions: Search attractions in a city (input: city name)
-        - searchHotels: Search hotels in a city (input: city name)
-        - searchRestaurants: Search restaurants in a city (input: city name)
+        可用工具：
+        - getWeather: 获取城市天气（输入：城市名）
+        - searchAttractions: 搜索景点（输入：城市名）
+        - searchHotels: 搜索酒店（输入：城市名）
+        - searchRestaurants: 搜索餐厅（输入：城市名）
 
-        IMPORTANT RULES:
-        1. Always respond in Chinese.
-        2. Your FINAL response MUST be a valid JSON object, wrapped in ```json ... ``` tags.
-        3. Do NOT add any text before or after the JSON block.
+        重要规则：
+        1. 必须用中文回复
+        2. 如果提供了【南京本地人攻略参考】，优先使用攻略中的建议（如本地人推荐的餐厅、避坑提示等）
+        3. 最终回复必须是有效的 JSON 对象，包裹在 ```json ... ``` 标签中
+        4. 不要在 JSON 块前后添加任何文本
 
-        Final JSON format:
+        最终 JSON 格式：
         ```json
         {
-            "cities": ["city1", "city2"],
+            "cities": ["城市1", "城市2"],
             "steps": [
                 {
                     "index": 0,
                     "type": "WEATHER",
-                    "city": "city1",
+                    "city": "城市1",
                     "description": "获取天气信息",
                     "toolName": "getWeather",
-                    "toolInput": "city1"
+                    "toolInput": "城市1"
                 }
             ],
-            "summary": "行程概要",
+            "summary": "行程概要（包含本地人建议）",
             "estimatedBudget": 5000.0
         }
         ```
@@ -96,17 +101,28 @@ public class PlanningAgent implements Agent {
     }
 
     /**
-     * Build user message from context
+     * 构建用户消息，包含 RAG 知识上下文
      */
     private String buildUserMessage(AgentContext context) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Travel request: ").append(context.getUserMessage()).append("\n\n");
+        sb.append("旅行请求：").append(context.getUserMessage()).append("\n\n");
 
         if (context.getRequirements() != null && !context.getRequirements().isEmpty()) {
-            sb.append("Extracted requirements:\n");
+            sb.append("提取的需求：\n");
             context.getRequirements().forEach((key, value) ->
                     sb.append("- ").append(key).append(": ").append(value).append("\n")
             );
+        }
+
+        // RAG 知识增强：添加本地人攻略上下文
+        try {
+            String ragContext = knowledgeService.getRagContext(context.getUserMessage());
+            if (!ragContext.isEmpty()) {
+                sb.append("\n").append(ragContext);
+                log.debug("RAG 上下文已添加到规划提示");
+            }
+        } catch (Exception e) {
+            log.warn("RAG 检索失败，继续规划: {}", e.getMessage());
         }
 
         return sb.toString();

@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Represents a single step in a travel plan.
+ * 旅行计划步骤
  */
 @Data
 @Builder
@@ -15,37 +15,37 @@ import lombok.NoArgsConstructor;
 public class PlanStep {
 
     /**
-     * Step index in the plan
+     * 步骤索引
      */
     private int index;
 
     /**
-     * Step type: WEATHER, ATTRACTION, HOTEL, RESTAURANT, BUDGET
+     * 步骤类型：天气、景点、酒店、餐厅、预算
      */
     private StepType type;
 
     /**
-     * City for this step
+     * 城市
      */
     private String city;
 
     /**
-     * Description of what this step does
+     * 步骤描述
      */
     private String description;
 
     /**
-     * Tool to call for this step
+     * 工具名称
      */
     private String toolName;
 
     /**
-     * Input for the tool
+     * 工具输入参数
      */
     private String toolInput;
 
     /**
-     * Step type enum
+     * 步骤类型枚举
      */
     public enum StepType {
         WEATHER,

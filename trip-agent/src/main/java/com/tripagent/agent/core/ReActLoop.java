@@ -9,6 +9,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -86,6 +88,21 @@ public class ReActLoop {
     }
 
     /**
+     * 调用 LLM（带重试）
+     *
+     * 最多重试 3 次，间隔 1 秒，指数退避
+     */
+    @Retryable(
+        retryFor = {Exception.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    private ChatResponse callLLM(ChatModel chatModel, List<Message> messages) {
+        Prompt prompt = new Prompt(messages);
+        return chatModel.call(prompt);
+    }
+
+    /**
      * Recursive reactive loop - each iteration is non-blocking
      */
     private Flux<AgentStep> reactiveLoop(ChatModel chatModel, List<Message> messages, int iteration) {
@@ -99,10 +116,9 @@ public class ReActLoop {
         log.debug("ReAct iteration {}", iteration + 1);
 
         // Call LLM on boundedElastic thread pool (non-blocking for Reactor)
-        Mono<ChatResponse> llmCall = Mono.fromCallable(() -> {
-            Prompt prompt = new Prompt(messages);
-            return chatModel.call(prompt);
-        }).subscribeOn(Schedulers.boundedElastic());
+        Mono<ChatResponse> llmCall = Mono.fromCallable(() ->
+            callLLM(chatModel, messages)
+        ).subscribeOn(Schedulers.boundedElastic());
 
         return llmCall.flatMapMany(response -> {
             AssistantMessage assistantMessage = response.getResult().getOutput();

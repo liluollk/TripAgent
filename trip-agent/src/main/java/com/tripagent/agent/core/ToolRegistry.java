@@ -4,6 +4,8 @@ import com.tripagent.utils.McpToolHelper;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
@@ -69,8 +71,15 @@ public class ToolRegistry {
     }
 
     /**
-     * Execute a tool by name
+     * Execute a tool by name (with retry)
+     *
+     * 最多重试 3 次，间隔 1 秒，指数退避
      */
+    @Retryable(
+        retryFor = {Exception.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
     public String executeTool(String toolName, String input) {
         ToolDefinition tool = tools.get(toolName);
         if (tool == null) {

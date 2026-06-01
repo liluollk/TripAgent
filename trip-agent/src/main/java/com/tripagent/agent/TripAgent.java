@@ -11,13 +11,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Main Trip Agent coordinator.
- * Implements Plan-and-Execute pattern with ReAct.
+ * 旅行代理协调器
+ * 实现 Plan-and-Execute 模式与 ReAct 循环
  */
 @Slf4j
 @Component
@@ -38,20 +37,20 @@ public class TripAgent implements Agent {
     public Flux<AgentStep> execute(AgentContext context) {
         log.info("TripAgent executing for session: {}", context.getSessionId());
 
-        // Phase 1: Planning
+        // 阶段 1: 规划
         Flux<AgentStep> planningPhase = Flux.concat(
                 Flux.just(AgentStep.builder()
                         .type(AgentStep.StepType.THINK)
-                        .content("Starting planning phase...")
+                        .content("开始规划阶段...")
                         .build()),
                 planningAgent.execute(context)
-                        .doOnError(e -> log.error("Planning failed", e))
+                        .doOnError(e -> log.error("规划失败", e))
         );
 
-        // Collect planning results, then execute
+        // 收集规划结果，然后执行
         return planningPhase.collectList()
                 .flatMapMany(planningSteps -> {
-                    // Extract plan result
+                    // 提取规划结果
                     String planResult = planningSteps.stream()
                             .filter(s -> s.getType() == AgentStep.StepType.RESULT)
                             .map(AgentStep::getContent)
@@ -59,47 +58,47 @@ public class TripAgent implements Agent {
                             .orElse("");
 
                     if (planResult.isEmpty()) {
-                        return Flux.just(buildErrorStep("No plan generated"));
+                        return Flux.just(buildErrorStep("未生成计划"));
                     }
 
-                    // Parse plan
+                    // 解析计划
                     Plan plan;
                     try {
                         plan = planningAgent.parsePlan(planResult);
                     } catch (Exception e) {
-                        log.error("Failed to parse plan", e);
-                        return Flux.just(buildErrorStep("Failed to parse plan: " + e.getMessage()));
+                        log.error("解析计划失败", e);
+                        return Flux.just(buildErrorStep("解析计划失败: " + e.getMessage()));
                     }
 
-                    // Send planning SSE event
+                    // 发送规划 SSE 事件
                     sseEventEmitter.sendPlanning(context.getSessionId(), plan);
 
-                    // Emit all planning steps
+                    // 发送所有规划步骤
                     Flux<AgentStep> planningOutput = Flux.fromIterable(planningSteps);
 
-                    // Phase 2: Execute steps sequentially
+                    // 阶段 2: 顺序执行步骤
                     Flux<AgentStep> executionPhase = executeStepsSequentially(context, plan);
 
                     return Flux.concat(planningOutput, executionPhase);
                 })
                 .onErrorResume(e -> {
-                    log.error("TripAgent execution failed", e);
-                    return Flux.just(buildErrorStep("Execution failed: " + e.getMessage()));
+                    log.error("TripAgent 执行失败", e);
+                    return Flux.just(buildErrorStep("执行失败: " + e.getMessage()));
                 });
     }
 
     /**
-     * Execute all plan steps sequentially, collecting results
+     * 顺序执行所有计划步骤，收集结果
      */
     private Flux<AgentStep> executeStepsSequentially(AgentContext context, Plan plan) {
         List<StepResult> stepResults = new ArrayList<>();
 
         Flux<AgentStep> startMsg = Flux.just(AgentStep.builder()
                 .type(AgentStep.StepType.THINK)
-                .content("Plan generated. Starting execution...")
+                .content("计划已生成，开始执行...")
                 .build());
 
-        // Use concatMap to execute steps one by one in order
+        // 使用 concatMap 按顺序逐步执行
         Flux<AgentStep> steps = Flux.range(0, plan.getTotalSteps())
                 .concatMap(i -> executeSingleStep(context, plan, i, stepResults));
 
@@ -107,18 +106,18 @@ public class TripAgent implements Agent {
     }
 
     /**
-     * Execute a single plan step and return its AgentStep stream
+     * 执行单个计划步骤，返回 AgentStep 流
      */
     private Flux<AgentStep> executeSingleStep(
             AgentContext context, Plan plan, int stepIndex, List<StepResult> stepResults) {
 
         PlanStep step = plan.getStep(stepIndex);
-        log.info("Executing step {}/{}: {}", stepIndex + 1, plan.getTotalSteps(), step.getDescription());
+        log.info("执行步骤 {}/{}: {}", stepIndex + 1, plan.getTotalSteps(), step.getDescription());
 
-        // Send executing SSE event
+        // 发送执行中 SSE 事件
         sseEventEmitter.sendExecuting(context.getSessionId(), step.getDescription(), "executing");
 
-        // Build context for execution
+        // 构建执行上下文
         AgentContext execContext = AgentContext.builder()
                 .userId(context.getUserId())
                 .sessionId(context.getSessionId())
@@ -126,10 +125,9 @@ public class TripAgent implements Agent {
                 .currentStepIndex(stepIndex)
                 .build();
 
-        // Execute and collect steps, sending ReAct events
+        // 执行并收集步骤，发送 ReAct 事件
         return executionAgent.execute(execContext)
                 .doOnNext(agentStep -> {
-                    // 发送 ReAct 循环的每个步骤到前端
                     switch (agentStep.getType()) {
                         case THINK -> sseEventEmitter.sendThinking(context.getSessionId(), agentStep.getContent());
                         case ACT -> sseEventEmitter.sendToolCall(context.getSessionId(), agentStep.getToolName(), agentStep.getToolInput());
@@ -139,18 +137,18 @@ public class TripAgent implements Agent {
                 })
                 .collectList()
                 .flatMapMany(execSteps -> {
-                    // Extract result
+                    // 提取结果
                     String result = extractResult(execSteps);
 
                     StepResult stepResult = executionAgent.parseStepResult(
                             step, result, execSteps.size());
                     stepResults.add(stepResult);
 
-                    // Send completed SSE event
+                    // 发送完成 SSE 事件
                     sseEventEmitter.sendExecuting(
                             context.getSessionId(), step.getDescription(), "completed");
 
-                    // If all steps done, generate final result
+                    // 如果所有步骤完成，生成最终结果
                     if (stepResults.size() == plan.getTotalSteps()) {
                         String finalResult = generateFinalResult(plan, stepResults);
                         sseEventEmitter.sendResult(context.getSessionId(), finalResult);
@@ -167,16 +165,16 @@ public class TripAgent implements Agent {
                     return Flux.fromIterable(execSteps);
                 })
                 .onErrorResume(e -> {
-                    log.error("Step {} execution failed", stepIndex, e);
+                    log.error("步骤 {} 执行失败", stepIndex, e);
                     sseEventEmitter.sendExecuting(
                             context.getSessionId(), step.getDescription(), "failed");
 
-                    // Record failure and continue
+                    // 记录失败并继续
                     StepResult failedResult = StepResult.failure(
                             stepIndex, step.getType().name(), step.getCity(), e.getMessage(), 0);
                     stepResults.add(failedResult);
 
-                    // If all steps done (including failures), generate final result
+                    // 如果所有步骤完成（包括失败的），生成最终结果
                     if (stepResults.size() == plan.getTotalSteps()) {
                         String finalResult = generateFinalResult(plan, stepResults);
                         sseEventEmitter.sendResult(context.getSessionId(), finalResult);
@@ -189,13 +187,13 @@ public class TripAgent implements Agent {
 
                     return Flux.just(AgentStep.builder()
                             .type(AgentStep.StepType.ERROR)
-                            .content("Step failed: " + e.getMessage())
+                            .content("步骤失败: " + e.getMessage())
                             .build());
                 });
     }
 
     /**
-     * Extract result text from agent steps
+     * 从代理步骤中提取结果文本
      */
     private String extractResult(List<AgentStep> steps) {
         return steps.stream()
@@ -206,7 +204,7 @@ public class TripAgent implements Agent {
     }
 
     /**
-     * Build an error step
+     * 构建错误步骤
      */
     private AgentStep buildErrorStep(String message) {
         return AgentStep.builder()
@@ -216,23 +214,23 @@ public class TripAgent implements Agent {
     }
 
     /**
-     * Generate final result from plan and step results
+     * 从计划和步骤结果生成最终结果
      */
     private String generateFinalResult(Plan plan, List<StepResult> stepResults) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Travel Plan Summary\n");
+        sb.append("旅行计划摘要\n");
         sb.append("==================\n\n");
 
-        sb.append("Cities: ").append(String.join(", ", plan.getCities())).append("\n");
-        sb.append("Total Steps: ").append(plan.getTotalSteps()).append("\n\n");
+        sb.append("城市: ").append(String.join(", ", plan.getCities())).append("\n");
+        sb.append("总步骤: ").append(plan.getTotalSteps()).append("\n\n");
 
-        sb.append("Step Results:\n");
+        sb.append("步骤结果:\n");
         for (StepResult result : stepResults) {
-            sb.append(String.format("- Step %d (%s in %s): %s\n",
+            sb.append(String.format("- 步骤 %d (%s 在 %s): %s\n",
                     result.getStepIndex() + 1,
                     result.getStepType(),
                     result.getCity(),
-                    result.isSuccess() ? "Success" : "Failed: " + result.getErrorMessage()));
+                    result.isSuccess() ? "成功" : "失败: " + result.getErrorMessage()));
         }
 
         return sb.toString();
