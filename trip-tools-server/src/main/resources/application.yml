@@ -1,12 +1,8 @@
-# STDIO 模式不需要 Web 服务器
-# server:
-#   port: 8081
-
 spring:
   main:
-    web-application-type: none  # 禁用 Web 服务器
-    banner-mode: off  # 禁用 banner 输出到 stdout
-    log-startup-info: false  # 禁用启动日志
+    web-application-type: none
+    banner-mode: off
+    log-startup-info: false
   application:
     name: trip-tools-server
   ai:
@@ -18,13 +14,12 @@ spring:
         type: SYNC
         request-timeout: 120s
 
-# 日志输出到 stderr，避免干扰 STDIO 通信
 logging:
   level:
     org.springframework.ai.mcp: WARN
     io.modelcontextprotocol: WARN
   file:
-    path: ./logs  # 日志文件路径
+    path: ./logs
 
 trip:
   weather:
