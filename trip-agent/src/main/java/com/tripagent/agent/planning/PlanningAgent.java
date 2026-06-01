@@ -2,6 +2,8 @@ package com.tripagent.agent.planning;
 
 import com.tripagent.agent.core.*;
 import com.tripagent.knowledge.KnowledgeService;
+import com.tripagent.service.memory.LongTermMemoryService;
+import com.tripagent.service.memory.MemoryCompressionService;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -22,16 +24,22 @@ public class PlanningAgent implements Agent {
     private final ReActLoop reActLoop;
     private final ObjectMapper objectMapper;
     private final KnowledgeService knowledgeService;
+    private final LongTermMemoryService longTermMemoryService;
+    private final MemoryCompressionService memoryCompressionService;
 
     public PlanningAgent(
             @Qualifier("planningChatModel") ChatModel planningChatModel,
             ReActLoop reActLoop,
             ObjectMapper objectMapper,
-            KnowledgeService knowledgeService) {
+            KnowledgeService knowledgeService,
+            LongTermMemoryService longTermMemoryService,
+            MemoryCompressionService memoryCompressionService) {
         this.planningChatModel = planningChatModel;
         this.reActLoop = reActLoop;
         this.objectMapper = objectMapper;
         this.knowledgeService = knowledgeService;
+        this.longTermMemoryService = longTermMemoryService;
+        this.memoryCompressionService = memoryCompressionService;
     }
 
     private static final String SYSTEM_PROMPT = """
@@ -88,10 +96,12 @@ public class PlanningAgent implements Agent {
     public Flux<AgentStep> execute(AgentContext context) {
         log.info("PlanningAgent executing for session: {}", context.getSessionId());
 
-        // Build user message with requirements
-        String userMessage = buildUserMessage(context);
+        // 尝试压缩历史消息
+        if (context.getChatHistory() != null && !context.getChatHistory().isEmpty()) {
+            memoryCompressionService.compressMessages(context.getSessionId(), context.getChatHistory());
+        }
 
-        // Execute ReAct loop
+        String userMessage = buildUserMessage(context);
         return reActLoop.execute(
                 planningChatModel,
                 SYSTEM_PROMPT,
@@ -114,6 +124,28 @@ public class PlanningAgent implements Agent {
             );
         }
 
+        // 添加用户长期记忆上下文
+        try {
+            String memoryContext = longTermMemoryService.formatMemoriesForPrompt(context.getSessionId());
+            if (!memoryContext.isEmpty()) {
+                sb.append(memoryContext);
+                log.debug("用户长期记忆已添加到规划提示");
+            }
+        } catch (Exception e) {
+            log.warn("获取用户记忆失败，继续规划: {}", e.getMessage());
+        }
+
+        // 添加历史摘要上下文
+        try {
+            String historicalSummary = memoryCompressionService.getHistoricalSummary(context.getSessionId());
+            if (!historicalSummary.isEmpty()) {
+                sb.append("\n【历史对话摘要】\n").append(historicalSummary).append("\n");
+                log.debug("历史摘要已添加到规划提示");
+            }
+        } catch (Exception e) {
+            log.warn("获取历史摘要失败，继续规划: {}", e.getMessage());
+        }
+
         // RAG 知识增强：添加本地人攻略上下文
         try {
             String ragContext = knowledgeService.getRagContext(context.getUserMessage());
@@ -129,28 +161,24 @@ public class PlanningAgent implements Agent {
     }
 
     /**
-     * Parse plan from agent result
+     * 解析计划
      */
     public Plan parsePlan(String result) {
         try {
-            // Extract JSON from result
             String json = extractJson(result);
-            // Normalize common LLM errors in JSON
             json = normalizeJson(json);
-            log.debug("Normalized JSON: {}", json);
+            log.debug("标准化后的 JSON: {}", json);
             return objectMapper.readValue(json, Plan.class);
         } catch (Exception e) {
-            log.error("Failed to parse plan from result: {}", result, e);
-            throw new RuntimeException("Failed to parse plan", e);
+            log.error("解析计划失败: {}", result, e);
+            throw new RuntimeException("解析计划失败", e);
         }
     }
 
     /**
-     * Normalize JSON to fix common LLM output issues.
-     * Uses case-insensitive regex to handle singular/plural/mixed-case enum variations.
+     * 标准化 JSON，修复 LLM 输出的常见问题
      */
     private String normalizeJson(String json) {
-        // Fix "type" field enum values: handle plural forms and case variations
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
                 "(?i)\"type\"\\s*:\\s*\"(attractions?|hotels?|restaurants?|weather|budget)\""
         ).matcher(json);
@@ -158,7 +186,6 @@ public class PlanningAgent implements Agent {
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {
             String value = matcher.group(1).toUpperCase();
-            // Remove trailing 'S' if present (ATTRACTIONS -> ATTRACTION, etc.)
             if (value.endsWith("S") && !value.equals("WEATHER") && !value.equals("BUDGET")) {
                 value = value.substring(0, value.length() - 1);
             }
@@ -169,25 +196,23 @@ public class PlanningAgent implements Agent {
     }
 
     /**
-     * Extract JSON from text
+     * 从文本中提取 JSON
      */
     private String extractJson(String text) {
-        log.debug("Extracting JSON from text (length={}): {}", text.length(),
+        log.debug("提取 JSON (长度={}): {}", text.length(),
                 text.length() > 500 ? text.substring(0, 500) + "..." : text);
 
-        // Try to find ```json ... ``` block first
         int jsonBlockStart = text.indexOf("```json");
         if (jsonBlockStart >= 0) {
             int contentStart = text.indexOf("\n", jsonBlockStart) + 1;
             int contentEnd = text.indexOf("```", contentStart);
             if (contentEnd > contentStart) {
                 String json = text.substring(contentStart, contentEnd).trim();
-                log.debug("Found JSON in ```json block: {}", json);
+                log.debug("从 ```json 块中找到 JSON: {}", json);
                 return json;
             }
         }
 
-        // Try ``` ... ``` block without json tag
         int blockStart = text.indexOf("```");
         if (blockStart >= 0) {
             int contentStart = text.indexOf("\n", blockStart) + 1;
@@ -195,22 +220,21 @@ public class PlanningAgent implements Agent {
             if (contentEnd > contentStart) {
                 String candidate = text.substring(contentStart, contentEnd).trim();
                 if (candidate.startsWith("{")) {
-                    log.debug("Found JSON in ``` block: {}", candidate);
+                    log.debug("从 ``` 块中找到 JSON: {}", candidate);
                     return candidate;
                 }
             }
         }
 
-        // Fallback: find first { to last }
         int start = text.indexOf("{");
         int end = text.lastIndexOf("}");
         if (start >= 0 && end > start) {
             String json = text.substring(start, end + 1);
-            log.debug("Found JSON by brace matching: {}", json);
+            log.debug("通过括号匹配找到 JSON: {}", json);
             return json;
         }
 
-        log.error("No JSON found in text: {}", text);
-        throw new RuntimeException("No JSON found in text");
+        log.error("未找到 JSON: {}", text);
+        throw new RuntimeException("未找到 JSON");
     }
 }

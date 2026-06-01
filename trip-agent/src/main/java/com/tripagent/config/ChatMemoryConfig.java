@@ -14,8 +14,7 @@ public class ChatMemoryConfig {
     private int windowSize;
 
     /**
-     * Chat Memory with sliding window
-     * 使用自动注册的 JdbcChatMemoryRepository（带有 @Repository 注解）
+     * 滑动窗口对话记忆
      */
     @Bean
     public ChatMemory chatMemory(ChatMemoryRepository chatMemoryRepository) {

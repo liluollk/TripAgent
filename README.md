@@ -8,8 +8,9 @@
 - 🔧 **自动工具调用**：通过 MCP 协议调用天气、景点、酒店、餐厅等工具
 - 💬 **多轮对话**：支持上下文理解，记住对话历史
 - 📡 **实时流式响应**：SSE 实时推送 Agent 推理过程
-- 🧠 **记忆系统**：短期/长期记忆，用户画像，已访问城市记录
+- 🧠 **记忆系统**：短期记忆、记忆压缩、长期记忆
 - 🔄 **混合架构**：Plan-and-Execute 全局规划 + ReAct 局部执行
+- 📚 **RAG 知识增强**：本地人攻略知识库，提供更实用的建议
 
 ## 🏗️ 架构
 
@@ -27,6 +28,9 @@
 | `ExecutionAgent` | 使用有限 ReAct 执行单个计划步骤 |
 | `ToolRegistry` | MCP 工具注册中心 |
 | `ReActLoop` | ReAct 循环实现 |
+| `MemoryCompressionService` | 对话记忆压缩 |
+| `LongTermMemoryService` | 用户长期记忆提取 |
+| `KnowledgeService` | RAG 知识检索 |
 
 ## 🚀 快速开始
 
@@ -39,8 +43,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/trip-agent.git
-cd trip-agent
+git clone https://github.com/liluollk/TripAgent.git
+cd TripAgent
 ```
 
 ### 2. 配置 API Keys
@@ -50,29 +54,17 @@ cd trip-agent
 | 服务 | 用途 | 获取方式 |
 |------|------|---------|
 | DeepSeek | AI 模型 | [DeepSeek 官网](https://platform.deepseek.com/) |
+| 千问 | 文本向量化 | [阿里云百炼](https://dashscope.console.aliyun.com/) |
 | 和风天气 | 天气查询 | [和风天气开发平台](https://dev.qweather.com/) |
 | 高德地图 | 景点/地理信息 | [高德开放平台](https://lbs.amap.com/) |
 
 复制配置模板并填入你的 API Keys：
 
 ```bash
-# 复制配置文件
-cp .env.example .env
 cp trip-agent/src/main/resources/application.yml.example trip-agent/src/main/resources/application.yml
-cp trip-tools-server/src/main/resources/application.yml.example trip-tools-server/src/main/resources/application.yml
-
-# 编辑 .env 文件，填入真实的 API Keys
-vim .env
 ```
 
-`.env` 文件内容示例：
-```env
-DEEPSEEK_API_KEY=sk-your-deepseek-key
-QWEATHER_API_KEY=your-qweather-key
-QWEATHER_HOST=your-qweather-host
-QWEATHER_GEO_HOST=your-qweather-geo-host
-AMAP_API_KEY=your-amap-key
-```
+编辑 `application.yml`，将环境变量替换为真实的 API Keys，或创建 `application-dev.yml` 本地开发配置。
 
 ### 3. 启动数据库
 
@@ -85,10 +77,10 @@ docker run -d \
   postgres:16
 
 # 创建数据库
-docker exec trip-agent-postgres psql -U postgres -c "CREATE DATABASE tripagent;"
+docker exec trip-agent-postgres psql -U postgres -c "CREATE DATABASE trip_agent;"
 ```
 
-或使用本地 PostgreSQL，创建 `tripagent` 数据库。
+或使用本地 PostgreSQL，创建 `trip_agent` 数据库。
 
 ### 4. 启动服务
 
@@ -138,7 +130,7 @@ curl http://localhost:8080/api/agent/health
 ```json
 {
   "userId": "user123",
-  "sessionId": "session456",  // 可选，用于多轮对话
+  "sessionId": "session456",
   "message": "计划一个3天的东京之旅"
 }
 ```
@@ -168,6 +160,7 @@ data:Travel Plan Summary...
 | Spring AI | 2.0.0-M8 | AI 框架 |
 | DeepSeek | V4 Pro/Flash | AI 模型 |
 | PostgreSQL | 16 | 数据库 |
+| pgvector | - | 向量存储 |
 | Caffeine | - | 缓存 |
 | MCP | - | 工具协议 |
 | SpringDoc OpenAPI | 3.0.3 | API 文档 |
@@ -175,7 +168,7 @@ data:Travel Plan Summary...
 ## 📁 项目结构
 
 ```
-trip-agent/
+TripAgent/
 ├── trip-agent/                    # 主项目（MCP Client）
 │   ├── src/main/java/com/tripagent/
 │   │   ├── agent/                 # Agent 核心
@@ -184,13 +177,17 @@ trip-agent/
 │   │   │   └── execution/        # 执行代理
 │   │   ├── controller/           # REST 控制器
 │   │   ├── service/              # 业务服务
+│   │   │   └── memory/           # 记忆服务
+│   │   ├── knowledge/            # RAG 知识服务
 │   │   ├── model/                # 数据模型
 │   │   ├── repository/           # 数据访问
 │   │   ├── config/               # 配置类
 │   │   ├── exception/            # 异常处理
 │   │   └── utils/                # 工具类
 │   └── src/main/resources/
-│       └── application.yml.example
+│       ├── application.yml.example
+│       ├── knowledge/            # 知识库文档
+│       └── db/migration/         # 数据库迁移
 │
 ├── trip-tools-server/             # MCP Server（工具服务）
 │   └── src/main/java/com/triptools/
@@ -215,9 +212,15 @@ Agent 使用 ReAct（Reasoning + Acting）循环：
 
 ### 记忆系统
 
-- **短期记忆**：当前对话上下文
-- **长期记忆**：用户历史偏好
-- **用户画像**：旅行偏好、已访问城市
+- **短期记忆**：滑动窗口保存最近 20 条对话
+- **记忆压缩**：对话超过阈值时自动摘要旧消息
+- **长期记忆**：从对话中提取用户偏好、事实、约束
+
+### RAG 知识增强
+
+集成本地人攻略知识库，提供更接地气的旅行建议：
+- 使用 pgvector + 千问 Embedding 进行向量检索
+- 知识文档自动分块、向量化、存储
 
 ### 工具集成
 
