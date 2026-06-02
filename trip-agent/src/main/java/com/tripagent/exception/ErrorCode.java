@@ -34,9 +34,9 @@ public enum ErrorCode {
     MEMORY_COMPRESS_ERROR(3004, "记忆压缩失败"),
 
     // 系统内部错误 9xxx
-    SYSTEM_ERROR(9999, "系统内部错误"),
     DATABASE_ERROR(9001, "数据库操作失败"),
-    NETWORK_ERROR(9002, "网络连接失败");
+    NETWORK_ERROR(9002, "网络连接失败"),
+    SYSTEM_ERROR(9999, "系统内部错误");
 
     /**
      * 错误码

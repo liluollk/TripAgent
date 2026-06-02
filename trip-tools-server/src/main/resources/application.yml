@@ -1,6 +1,8 @@
+server:
+  port: 8081
+
 spring:
   main:
-    web-application-type: none
     banner-mode: off
     log-startup-info: false
   application:
@@ -12,7 +14,11 @@ spring:
         name: trip-tools
         version: 1.0.0
         type: SYNC
+        protocol: STREAMABLE
         request-timeout: 120s
+        streamable-http:
+          mcp-endpoint: /mcp
+          keep-alive-interval: 30s
 
 logging:
   level:

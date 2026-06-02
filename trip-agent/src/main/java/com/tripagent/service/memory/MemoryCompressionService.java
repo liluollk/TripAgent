@@ -1,9 +1,13 @@
 package com.tripagent.service.memory;
 
 import com.tripagent.agent.core.AgentContext;
+import com.tripagent.agent.core.TokenUsageAdvisor;
 import com.tripagent.model.entity.ChatMemorySummary;
 import com.tripagent.repository.memory.ChatMemorySummaryRepository;
+import com.tripagent.service.TokenUsageTracker;
+import com.tripagent.service.TokenUsageTracker.CallType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -19,18 +23,24 @@ import java.util.stream.Collectors;
 @Service
 public class MemoryCompressionService {
 
-    private final ChatModel chatModel;
+    private final ChatClient chatClient;
     private final ChatMemorySummaryRepository summaryRepository;
+    private final TokenUsageTracker tokenUsageTracker;
+    private final int compressionThreshold;
 
     public MemoryCompressionService(
             @Qualifier("planningChatModel") ChatModel chatModel,
-            ChatMemorySummaryRepository summaryRepository) {
-        this.chatModel = chatModel;
+            ChatMemorySummaryRepository summaryRepository,
+            TokenUsageTracker tokenUsageTracker,
+            TokenUsageAdvisor tokenUsageAdvisor,
+            @Value("${trip.agent.memory.compression-threshold:15}") int compressionThreshold) {
+        this.chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(tokenUsageAdvisor)
+                .build();
         this.summaryRepository = summaryRepository;
+        this.tokenUsageTracker = tokenUsageTracker;
+        this.compressionThreshold = compressionThreshold;
     }
-
-    @Value("${trip.agent.memory.compression-threshold:15}")
-    private int compressionThreshold;
 
     private static final String COMPRESSION_PROMPT = """
         请将以下对话历史压缩成简洁的摘要，保留关键信息：
@@ -66,12 +76,35 @@ public class MemoryCompressionService {
         List<AgentContext.ChatMessage> toCompress = messages.subList(0, messages.size() - keepRecent);
         String messageText = formatMessages(toCompress);
 
-        // 调用 LLM 生成摘要
-        String prompt = String.format(COMPRESSION_PROMPT, messageText);
-        String summary = chatModel.call(new Prompt(new UserMessage(prompt)))
-                .getResult()
-                .getOutput()
-                .getText();
+        // 估算原始消息 token 数
+        int originalEstimatedTokens = TokenUsageTracker.estimateTokens(messageText);
+
+        // 调用 LLM 生成摘要（通过 ChatClient，TokenUsageAdvisor 自动拦截）
+        TokenUsageAdvisor.setCurrentCallType(CallType.COMPRESSION);
+        String summary;
+        try {
+            String promptText = String.format(COMPRESSION_PROMPT, messageText);
+            summary = chatClient.prompt(new Prompt(new UserMessage(promptText)))
+                    .call()
+                    .chatResponse()
+                    .getResult()
+                    .getOutput()
+                    .getText();
+        } finally {
+            TokenUsageAdvisor.clearCurrentCallType();
+        }
+
+        // 估算摘要 token 数
+        int summaryEstimatedTokens = TokenUsageTracker.estimateTokens(summary);
+
+        // 记录压缩效果
+        tokenUsageTracker.recordCompression(
+                toCompress.size(),
+                originalEstimatedTokens,
+                0,  // compressedPromptTokens 由 Advisor 自动记录
+                0,  // compressedCompletionTokens 由 Advisor 自动记录
+                summaryEstimatedTokens
+        );
 
         // 保存摘要
         ChatMemorySummary summaryEntity = new ChatMemorySummary();

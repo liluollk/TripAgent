@@ -7,10 +7,13 @@ import com.tripagent.agent.planning.Plan;
 import com.tripagent.agent.planning.PlanningAgent;
 import com.tripagent.agent.planning.PlanStep;
 import com.tripagent.service.SessionManager;
+import com.tripagent.service.memory.LongTermMemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +30,7 @@ public class TripAgent implements Agent {
     private final ExecutionAgent executionAgent;
     private final SessionManager sessionManager;
     private final SseEventEmitter sseEventEmitter;
+    private final LongTermMemoryService longTermMemoryService;
 
     @Override
     public String getName() {
@@ -81,6 +85,24 @@ public class TripAgent implements Agent {
 
                     return Flux.concat(planningOutput, executionPhase);
                 })
+                .doOnComplete(() -> {
+                    // 执行完成后，异步提取长期记忆
+                    try {
+                        SessionManager.SessionData session = sessionManager.getSession(context.getSessionId());
+                        if (session != null && !session.getChatHistory().isEmpty()) {
+                            Mono.fromRunnable(() ->
+                                    longTermMemoryService.extractMemories(
+                                            context.getSessionId(), session.getChatHistory())
+                            ).subscribeOn(Schedulers.boundedElastic())
+                            .subscribe(
+                                    null,
+                                    e -> log.warn("长期记忆提取失败: {}", e.getMessage())
+                            );
+                        }
+                    } catch (Exception e) {
+                        log.warn("触发长期记忆提取失败: {}", e.getMessage());
+                    }
+                })
                 .onErrorResume(e -> {
                     log.error("TripAgent 执行失败", e);
                     return Flux.just(buildErrorStep("执行失败: " + e.getMessage()));
@@ -117,10 +139,11 @@ public class TripAgent implements Agent {
         // 发送执行中 SSE 事件
         sseEventEmitter.sendExecuting(context.getSessionId(), step.getDescription(), "executing");
 
-        // 构建执行上下文
+        // 构建执行上下文（携带对话历史以保持上下文连贯）
         AgentContext execContext = AgentContext.builder()
                 .userId(context.getUserId())
                 .sessionId(context.getSessionId())
+                .chatHistory(context.getChatHistory())
                 .currentPlan(plan)
                 .currentStepIndex(stepIndex)
                 .build();
@@ -222,15 +245,31 @@ public class TripAgent implements Agent {
         sb.append("==================\n\n");
 
         sb.append("城市: ").append(String.join(", ", plan.getCities())).append("\n");
-        sb.append("总步骤: ").append(plan.getTotalSteps()).append("\n\n");
+        sb.append("总步骤: ").append(plan.getTotalSteps()).append("\n");
+        if (plan.getSummary() != null) {
+            sb.append("计划概要: ").append(plan.getSummary()).append("\n");
+        }
+        if (plan.getEstimatedBudget() != null) {
+            sb.append("预估预算: ¥").append(plan.getEstimatedBudget()).append("\n");
+        }
+        sb.append("\n");
 
-        sb.append("步骤结果:\n");
+        sb.append("步骤详情:\n");
         for (StepResult result : stepResults) {
-            sb.append(String.format("- 步骤 %d (%s 在 %s): %s\n",
+            sb.append(String.format("\n--- 步骤 %d (%s 在 %s) ---\n",
                     result.getStepIndex() + 1,
                     result.getStepType(),
-                    result.getCity(),
-                    result.isSuccess() ? "成功" : "失败: " + result.getErrorMessage()));
+                    result.getCity()));
+            if (result.isSuccess()) {
+                if (result.getData() != null) {
+                    sb.append(result.getData().toString());
+                } else {
+                    sb.append("执行成功（无数据）");
+                }
+            } else {
+                sb.append("失败: ").append(result.getErrorMessage());
+            }
+            sb.append("\n");
         }
 
         return sb.toString();

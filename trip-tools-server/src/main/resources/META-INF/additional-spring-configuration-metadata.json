@@ -1,0 +1,45 @@
+{
+  "properties": [
+    {
+      "name": "spring.ai.mcp.server.enabled",
+      "type": "java.lang.Boolean",
+      "description": "启用 MCP 服务端",
+      "defaultValue": true
+    },
+    {
+      "name": "spring.ai.mcp.server.name",
+      "type": "java.lang.String",
+      "description": "MCP 服务端名称"
+    },
+    {
+      "name": "spring.ai.mcp.server.version",
+      "type": "java.lang.String",
+      "description": "MCP 服务端版本"
+    },
+    {
+      "name": "spring.ai.mcp.server.type",
+      "type": "java.lang.String",
+      "description": "MCP 服务端类型 (SYNC/ASYNC)"
+    },
+    {
+      "name": "spring.ai.mcp.server.protocol",
+      "type": "java.lang.String",
+      "description": "MCP 协议类型 (STREAMABLE)"
+    },
+    {
+      "name": "spring.ai.mcp.server.request-timeout",
+      "type": "java.time.Duration",
+      "description": "MCP 请求超时时间"
+    },
+    {
+      "name": "spring.ai.mcp.server.streamable-http.mcp-endpoint",
+      "type": "java.lang.String",
+      "description": "MCP Streamable HTTP 端点路径"
+    },
+    {
+      "name": "spring.ai.mcp.server.streamable-http.keep-alive-interval",
+      "type": "java.time.Duration",
+      "description": "MCP Streamable HTTP 保活间隔"
+    }
+  ]
+}

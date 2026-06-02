@@ -1,11 +1,9 @@
 package com.tripagent.config;
 
-import com.tripagent.agent.core.ToolRegistry;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -20,27 +18,18 @@ import java.time.Duration;
 /**
  * 模型配置类
  * 配置 DeepSeek API 客户端和聊天模型
+ *
+ * 使用 {@link AgentProperties} 进行类型安全的配置绑定
  */
 @Configuration
+@EnableConfigurationProperties({AgentProperties.class, RagProperties.class, WeatherProperties.class, AmapProperties.class})
 public class ModelConfig {
 
-    @Value("${trip.agent.planning.model:deepseek-v4-pro}")
-    private String planningModel;
+    private final AgentProperties agentProperties;
 
-    @Value("${trip.agent.planning.temperature:0.7}")
-    private float planningTemperature;
-
-    @Value("${trip.agent.execution.model:deepseek-v4-flash}")
-    private String executionModel;
-
-    @Value("${trip.agent.execution.temperature:0.3}")
-    private float executionTemperature;
-
-    @Value("${spring.ai.deepseek.api-key}")
-    private String apiKey;
-
-    @Value("${spring.ai.deepseek.base-url:https://api.deepseek.com}")
-    private String baseUrl;
+    public ModelConfig(AgentProperties agentProperties) {
+        this.agentProperties = agentProperties;
+    }
 
     /**
      * 共享的 DeepSeekApi 实例（HTTP 客户端）
@@ -48,7 +37,9 @@ public class ModelConfig {
      */
     @Bean
     @Primary
-    public DeepSeekApi deepSeekApi() {
+    public DeepSeekApi deepSeekApi(
+            @org.springframework.beans.factory.annotation.Value("${spring.ai.deepseek.api-key}") String apiKey,
+            @org.springframework.beans.factory.annotation.Value("${spring.ai.deepseek.base-url:https://api.deepseek.com}") String baseUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(30000);
         requestFactory.setReadTimeout(180000);
@@ -74,8 +65,8 @@ public class ModelConfig {
     @Bean("planningChatModel")
     public DeepSeekChatModel planningChatModel(DeepSeekApi deepSeekApi) {
         DeepSeekChatOptions options = DeepSeekChatOptions.builder()
-                .model(planningModel)
-                .temperature((double) planningTemperature)
+                .model(agentProperties.planning().model())
+                .temperature((double) agentProperties.planning().temperature())
                 .build();
 
         return DeepSeekChatModel.builder()
@@ -90,8 +81,8 @@ public class ModelConfig {
     @Bean("executionChatModel")
     public DeepSeekChatModel executionChatModel(DeepSeekApi deepSeekApi) {
         DeepSeekChatOptions options = DeepSeekChatOptions.builder()
-                .model(executionModel)
-                .temperature((double) executionTemperature)
+                .model(agentProperties.execution().model())
+                .temperature((double) agentProperties.execution().temperature())
                 .logprobs(false)
                 .build();
 
@@ -101,11 +92,4 @@ public class ModelConfig {
                 .build();
     }
 
-    /**
-     * 启动时初始化工具注册表
-     */
-    @Bean
-    public CommandLineRunner initToolRegistry(ToolRegistry toolRegistry) {
-        return args -> toolRegistry.initDefaultTools();
-    }
 }

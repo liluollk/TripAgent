@@ -40,6 +40,7 @@ public class AgentContext {
 
     /**
      * Current plan (for execution phase)
+     * 类型安全：使用 {@link #setCurrentPlan(Object)} 和 {@link #getCurrentPlanAs(Class)} 进行访问
      */
     private Object currentPlan;
 
@@ -52,6 +53,22 @@ public class AgentContext {
      * Results from previous steps
      */
     private List<Object> stepResults;
+
+    /**
+     * 类型安全地获取 currentPlan
+     *
+     * @param type 期望的 Plan 类型
+     * @param <T>  Plan 类型
+     * @return 类型转换后的 Plan
+     * @throws ClassCastException 如果 currentPlan 不是期望的类型
+     * @throws IllegalStateException 如果 currentPlan 为 null
+     */
+    public <T> T getCurrentPlanAs(Class<T> type) {
+        if (currentPlan == null) {
+            throw new IllegalStateException("currentPlan is null");
+        }
+        return type.cast(currentPlan);
+    }
 
     /**
      * Chat message representation

@@ -3,8 +3,8 @@ package com.triptools.service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tripcommon.model.vo.WeatherInfo;
+import com.triptools.config.WeatherProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -25,21 +25,14 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class WeatherService {
 
-    @Value("${trip.weather.api-key}")
-    private String apiKey;
-
-    @Value("${trip.weather.host}")
-    private String host;
-
-    @Value("${trip.weather.geo-host}")
-    private String geoHost;
-
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final WeatherProperties weatherProperties;
 
-    public WeatherService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public WeatherService(RestTemplate restTemplate, ObjectMapper objectMapper, WeatherProperties weatherProperties) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.weatherProperties = weatherProperties;
     }
 
     /**
@@ -66,10 +59,10 @@ public class WeatherService {
             }
 
             // 获取实时天气
-            String url = "https://" + host + "/v7/weather/now?location=" + locationId;
+            String url = "https://" + weatherProperties.host() + "/v7/weather/now?location=" + locationId;
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-QW-Api-Key", apiKey);
+            headers.set("X-QW-Api-Key", weatherProperties.apiKey());
             headers.set("Accept-Encoding", "gzip, deflate");
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
@@ -113,10 +106,10 @@ public class WeatherService {
     private String getLocationId(String city) {
         try {
             String encodedCity = URLEncoder.encode(city, StandardCharsets.UTF_8);
-            String url = "https://" + geoHost + "/geo/v2/city/lookup?location=" + encodedCity;
+            String url = "https://" + weatherProperties.geoHost() + "/geo/v2/city/lookup?location=" + encodedCity;
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-QW-Api-Key", apiKey);
+            headers.set("X-QW-Api-Key", weatherProperties.apiKey());
             headers.set("Accept-Encoding", "gzip, deflate");
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
@@ -139,7 +132,10 @@ public class WeatherService {
     }
 
     /**
-     * 解压 HTTP 响应（自动处理 Gzip）
+     * 解压 HTTP 响应（手动处理 Gzip）
+     *
+     * 说明：使用 byte[].class 接收响应体绕过了 RestTemplate 的自动解压机制，
+     * 因此需要手动检测 Gzip 魔数并解压。这样可以更好地控制解压过程和错误处理。
      */
     private String decompressResponse(byte[] responseBytes) throws Exception {
         if (responseBytes == null) {

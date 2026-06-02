@@ -3,14 +3,16 @@ package com.triptools.service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tripcommon.model.vo.PoiInfo;
+import com.triptools.config.AmapProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,15 +23,14 @@ import java.util.List;
 @Slf4j
 public class PoiService {
 
-    @Value("${trip.amap.api-key}")
-    private String amapApiKey;
-
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final AmapProperties amapProperties;
 
-    public PoiService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public PoiService(RestTemplate restTemplate, ObjectMapper objectMapper, AmapProperties amapProperties) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.amapProperties = amapProperties;
     }
 
     /**
@@ -45,8 +46,10 @@ public class PoiService {
     )
     public List<PoiInfo> searchPoi(String city, String type) {
         try {
-            String url = "https://restapi.amap.com/v5/place/text?key=" + amapApiKey +
-                    "&region=" + city + "&types=" + type + "&show_fields=business";
+            String encodedCity = URLEncoder.encode(city, StandardCharsets.UTF_8);
+            String encodedType = URLEncoder.encode(type, StandardCharsets.UTF_8);
+            String url = "https://restapi.amap.com/v5/place/text?key=" + amapProperties.apiKey() +
+                    "&region=" + encodedCity + "&types=" + encodedType + "&show_fields=business";
 
             String response = restTemplate.getForObject(url, String.class);
             JsonNode root = objectMapper.readTree(response);
@@ -71,9 +74,11 @@ public class PoiService {
                         }
 
                         PoiInfo poiInfo = PoiInfo.builder()
+                                .id(poi.has("id") ? poi.get("id").asText() : null)
                                 .name(poi.has("name") ? poi.get("name").asText() : "未知")
                                 .address(poi.has("address") ? poi.get("address").asText() : "未知")
                                 .type(poi.has("type") ? poi.get("type").asText() : "未知")
+                                .city(city)
                                 .longitude(longitude)
                                 .latitude(latitude)
                                 .phone(poi.has("business") && poi.get("business").has("tel") ? poi.get("business").get("tel").asText() : "")

@@ -1,11 +1,14 @@
 package com.tripagent.utils;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * JSON 工具类
  */
 public class JsonUtils {
+
+    private static final ObjectMapper SHARED_MAPPER = new ObjectMapper();
 
     private JsonUtils() {
         // 私有构造函数，防止实例化
@@ -39,6 +42,46 @@ public class JsonUtils {
      */
     public static boolean getBooleanOrDefault(JsonNode node, String field, boolean defaultValue) {
         return node.has(field) ? node.get(field).asBoolean() : defaultValue;
+    }
+
+    /**
+     * 从 AI 回复中提取 JSON 对象
+     * 优先从 ```json 代码块中提取，其次从 ``` 代码块中提取，最后用括号匹配
+     *
+     * @param text AI 回复文本
+     * @return 提取的 JSON 字符串
+     * @throws RuntimeException 未找到 JSON 时抛出
+     */
+    public static String extractJsonFromAiResponse(String text) {
+        if (text == null || text.isEmpty()) {
+            throw new RuntimeException("文本为空，未找到 JSON");
+        }
+
+        // 优先从 ```json 代码块中提取
+        int jsonBlockStart = text.indexOf("```json");
+        if (jsonBlockStart >= 0) {
+            int contentStart = text.indexOf("\n", jsonBlockStart) + 1;
+            int contentEnd = text.indexOf("```", contentStart);
+            if (contentEnd > contentStart) {
+                return text.substring(contentStart, contentEnd).trim();
+            }
+        }
+
+        // 其次从 ``` 代码块中提取
+        int blockStart = text.indexOf("```");
+        if (blockStart >= 0) {
+            int contentStart = text.indexOf("\n", blockStart) + 1;
+            int contentEnd = text.indexOf("```", contentStart);
+            if (contentEnd > contentStart) {
+                String candidate = text.substring(contentStart, contentEnd).trim();
+                if (candidate.startsWith("{") || candidate.startsWith("[")) {
+                    return candidate;
+                }
+            }
+        }
+
+        // 最后用括号匹配提取
+        return extractJson(text);
     }
 
     /**
@@ -168,25 +211,37 @@ public class JsonUtils {
      * 检查文本是否包含有效的 JSON 对象
      *
      * @param text 要检查的文本
-     * @return 是否包含 JSON 对象
+     * @return 是否包含可解析的 JSON 对象
      */
     public static boolean containsJson(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
-        return text.contains("{") && text.contains("}");
+        String extracted = extractJson(text);
+        try {
+            SHARED_MAPPER.readTree(extracted);
+            return extracted.startsWith("{");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
      * 检查文本是否包含有效的 JSON 数组
      *
      * @param text 要检查的文本
-     * @return 是否包含 JSON 数组
+     * @return 是否包含可解析的 JSON 数组
      */
     public static boolean containsJsonArray(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
-        return text.contains("[") && text.contains("]");
+        String extracted = extractJsonArray(text);
+        try {
+            SHARED_MAPPER.readTree(extracted);
+            return extracted.startsWith("[");
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

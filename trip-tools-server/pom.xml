@@ -54,7 +54,7 @@
         <!-- Spring AI MCP Server (STDIO 模式) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server</artifactId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
 
         <!-- Lombok -->
@@ -64,10 +64,11 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Jackson -->
+        <!-- Configuration Processor: 生成 spring-configuration-metadata.json -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- Apache HttpClient 5 (连接池支持) -->

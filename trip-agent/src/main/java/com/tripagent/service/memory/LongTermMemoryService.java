@@ -1,9 +1,14 @@
 package com.tripagent.service.memory;
 
 import com.tripagent.agent.core.AgentContext;
+import com.tripagent.agent.core.TokenUsageAdvisor;
 import com.tripagent.model.entity.UserLongTermMemory;
 import com.tripagent.repository.memory.UserLongTermMemoryRepository;
+import com.tripagent.service.TokenUsageTracker.CallType;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -11,20 +16,27 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 @Service
 public class LongTermMemoryService {
 
-    private final ChatModel chatModel;
+    private final ChatClient chatClient;
     private final UserLongTermMemoryRepository memoryRepository;
+    private final ObjectMapper objectMapper;
 
     public LongTermMemoryService(
             @Qualifier("planningChatModel") ChatModel chatModel,
-            UserLongTermMemoryRepository memoryRepository) {
-        this.chatModel = chatModel;
+            UserLongTermMemoryRepository memoryRepository,
+            TokenUsageAdvisor tokenUsageAdvisor,
+            ObjectMapper objectMapper) {
+        this.chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(tokenUsageAdvisor)
+                .build();
         this.memoryRepository = memoryRepository;
+        this.objectMapper = objectMapper;
     }
 
     private static final String EXTRACTION_PROMPT = """
@@ -54,7 +66,10 @@ public class LongTermMemoryService {
         String prompt = String.format(EXTRACTION_PROMPT, messageText);
 
         try {
-            String result = chatModel.call(new Prompt(new UserMessage(prompt)))
+            TokenUsageAdvisor.setCurrentCallType(CallType.LONG_TERM_MEMORY);
+            String result = chatClient.prompt(new Prompt(new UserMessage(prompt)))
+                    .call()
+                    .chatResponse()
                     .getResult()
                     .getOutput()
                     .getText();
@@ -71,6 +86,8 @@ public class LongTermMemoryService {
             log.info("从对话 {} 提取了 {} 条长期记忆", conversationId, memories.size());
         } catch (Exception e) {
             log.error("提取长期记忆失败: {}", e.getMessage(), e);
+        } finally {
+            TokenUsageAdvisor.clearCurrentCallType();
         }
     }
 
@@ -106,23 +123,45 @@ public class LongTermMemoryService {
     }
 
     private List<UserLongTermMemory> parseMemories(String conversationId, String json) {
-        List<UserLongTermMemory> memories = new java.util.ArrayList<>();
+        List<UserLongTermMemory> memories = new ArrayList<>();
 
-        // 简单的 JSON 解析，避免引入额外依赖
-        // 查找所有 {"type": "...", "content": "..."} 模式
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                "\\{\\s*\"type\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"content\"\\s*:\\s*\"([^\"]+)\"\\s*\\}"
-        );
-        java.util.regex.Matcher matcher = pattern.matcher(json);
+        try {
+            // 从 LLM 输出中提取 JSON 数组
+            String arrayJson = json;
+            int start = json.indexOf("[");
+            int end = json.lastIndexOf("]");
+            if (start >= 0 && end > start) {
+                arrayJson = json.substring(start, end + 1);
+            }
 
-        while (matcher.find()) {
-            UserLongTermMemory memory = new UserLongTermMemory();
-            memory.setConversationId(conversationId);
-            memory.setMemoryType(matcher.group(1));
-            memory.setContent(matcher.group(2));
-            memory.setConfidence(0.8);
-            memory.setCreatedAt(LocalDateTime.now());
-            memories.add(memory);
+            JsonNode arrayNode = objectMapper.readTree(arrayJson);
+            if (arrayNode.isArray()) {
+                for (JsonNode node : arrayNode) {
+                    UserLongTermMemory memory = new UserLongTermMemory();
+                    memory.setConversationId(conversationId);
+                    memory.setMemoryType(node.has("type") ? node.get("type").asText() : "FACT");
+                    memory.setContent(node.has("content") ? node.get("content").asText() : "");
+                    memory.setConfidence(0.8);
+                    memory.setCreatedAt(LocalDateTime.now());
+                    memories.add(memory);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("解析长期记忆 JSON 失败，回退到正则解析: {}", e.getMessage());
+            // 回退到正则解析
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                    "\\{\\s*\"type\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"content\"\\s*:\\s*\"([^\"]+)\"\\s*\\}"
+            );
+            java.util.regex.Matcher matcher = pattern.matcher(json);
+            while (matcher.find()) {
+                UserLongTermMemory memory = new UserLongTermMemory();
+                memory.setConversationId(conversationId);
+                memory.setMemoryType(matcher.group(1));
+                memory.setContent(matcher.group(2));
+                memory.setConfidence(0.8);
+                memory.setCreatedAt(LocalDateTime.now());
+                memories.add(memory);
+            }
         }
 
         return memories;

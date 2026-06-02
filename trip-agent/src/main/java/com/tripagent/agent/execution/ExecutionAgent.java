@@ -2,61 +2,59 @@ package com.tripagent.agent.execution;
 
 import com.tripagent.agent.core.*;
 import com.tripagent.agent.planning.Plan;
+import com.tripagent.service.TokenUsageTracker.CallType;
 import com.tripagent.agent.planning.PlanStep;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+
 import java.util.*;
 
 /**
- * Execution Agent with limited ReAct loop.
- * Executes plan steps with max 3 iterations per step.
+ * 执行代理，使用 Spring AI 原生工具调用执行单个计划步骤。
  */
 @Slf4j
 @Component
 public class ExecutionAgent implements Agent {
 
-    private final ChatModel executionChatModel;
+    private final ChatClient executionChatClient;
     private final ReActLoop reActLoop;
     private final ObjectMapper objectMapper;
 
     public ExecutionAgent(
             @Qualifier("executionChatModel") ChatModel executionChatModel,
+            ToolCallbackProvider toolCallbackProvider,
             ReActLoop reActLoop,
-            ObjectMapper objectMapper) {
-        this.executionChatModel = executionChatModel;
+            ObjectMapper objectMapper,
+            TokenUsageAdvisor tokenUsageAdvisor) {
+        // 包装 ToolCallbackProvider 以捕获工具调用事件
+        ToolEventCapture toolEventCapture = new ToolEventCapture(toolCallbackProvider);
+
+        this.executionChatClient = ChatClient.builder(executionChatModel)
+                .defaultToolCallbacks(toolEventCapture)
+                .defaultAdvisors(tokenUsageAdvisor)
+                .build();
         this.reActLoop = reActLoop;
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * Maximum ReAct iterations per step
-     */
-    private static final int MAX_ITERATIONS_PER_STEP = 3;
-
     private static final String SYSTEM_PROMPT = """
-        You are a travel information executor. Your job is to execute a single plan step.
+        你是旅行信息执行器，负责执行单个计划步骤。
 
-        You will receive a step description and should:
-        1. Think about what tool to use
-        2. Call the appropriate tool
-        3. Return the result
+        你会收到一个步骤描述，请直接调用对应的工具获取信息，然后返回结果。
 
-        To use a tool, respond with:
-        ```tool
-        toolName:input
-        ```
+        可用工具：
+        - getWeather: 获取城市天气
+        - searchAttractions: 搜索景点
+        - searchHotels: 搜索酒店
+        - searchRestaurants: 搜索餐厅
 
-        Available tools:
-        - getWeather: Get weather for a city (input: city name)
-        - searchAttractions: Search attractions in a city (input: city name)
-        - searchHotels: Search hotels in a city (input: city name)
-        - searchRestaurants: Search restaurants in a city (input: city name)
-
-        Return the tool result directly. Do not add extra explanation.
+        直接返回工具结果，不要添加额外解释。
         """;
 
     @Override
@@ -68,8 +66,8 @@ public class ExecutionAgent implements Agent {
     public Flux<AgentStep> execute(AgentContext context) {
         log.info("ExecutionAgent executing for session: {}", context.getSessionId());
 
-        // Get current plan and step
-        Plan plan = (Plan) context.getCurrentPlan();
+        // 获取当前计划和步骤
+        Plan plan = context.getCurrentPlanAs(Plan.class);
         int stepIndex = context.getCurrentStepIndex();
         PlanStep step = plan.getStep(stepIndex);
 
@@ -80,24 +78,31 @@ public class ExecutionAgent implements Agent {
                     .build());
         }
 
-        // Build user message for this step
+        // 构建步骤执行消息
         String userMessage = buildStepMessage(step);
 
-        // Execute with limited ReAct loop
+        // 使用 ReAct 循环执行（Spring AI 自动处理工具调用）
         return reActLoop.execute(
-                executionChatModel,
+                executionChatClient,
                 SYSTEM_PROMPT,
                 userMessage,
-                null  // No chat history for execution
-        ).take(MAX_ITERATIONS_PER_STEP * 2);  // Limit iterations (each iteration has THINK + ACT/OBSERVE)
+                context.getChatHistory(),
+                context.getSessionId(),
+                CallType.EXECUTION
+        );
     }
 
     /**
-     * Build message for a single step
+     * 构建步骤执行消息
      */
     private String buildStepMessage(PlanStep step) {
         return String.format(
-                "Execute step %d: %s\nCity: %s\nDescription: %s\nTool: %s\nInput: %s",
+                "请执行以下旅行计划步骤：\n" +
+                "步骤 %d: %s\n" +
+                "城市: %s\n" +
+                "说明: %s\n" +
+                "需要调用的工具: %s\n" +
+                "工具输入: %s",
                 step.getIndex(),
                 step.getType(),
                 step.getCity(),
@@ -108,11 +113,11 @@ public class ExecutionAgent implements Agent {
     }
 
     /**
-     * Parse step result from agent output
+     * 从代理输出解析步骤结果
      */
     public StepResult parseStepResult(PlanStep step, String result, int iterations) {
         try {
-            // Try to parse as JSON
+            // 尝试解析为 JSON
             Object data = objectMapper.readValue(result, Object.class);
             return StepResult.success(
                     step.getIndex(),
@@ -122,7 +127,7 @@ public class ExecutionAgent implements Agent {
                     iterations
             );
         } catch (Exception e) {
-            // Return as plain text
+            // 作为纯文本返回
             return StepResult.success(
                     step.getIndex(),
                     step.getType().name(),

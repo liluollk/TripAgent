@@ -11,6 +11,9 @@
 - 🧠 **记忆系统**：短期记忆、记忆压缩、长期记忆
 - 🔄 **混合架构**：Plan-and-Execute 全局规划 + ReAct 局部执行
 - 📚 **RAG 知识增强**：本地人攻略知识库，提供更实用的建议
+- 🎯 **意图识别**：智能判断用户意图，无关查询自动跳过 RAG 检索
+- 🔍 **多路召回检索**：语义向量 + BM25 关键词双路召回 + RRF 融合排序
+- ✂️ **递归语义分块**：按标题→段落→句子→固定字符递归切分，保留语义完整性
 
 ## 🏗️ 架构
 
@@ -26,11 +29,12 @@
 | `TripAgent` | 主协调器，编排规划和执行阶段 |
 | `PlanningAgent` | 使用 ReAct 循环生成旅行计划 |
 | `ExecutionAgent` | 使用有限 ReAct 执行单个计划步骤 |
-| `ToolRegistry` | MCP 工具注册中心 |
+| `IntentRecognizer` | 意图识别，判断是否需要 RAG 检索 |
 | `ReActLoop` | ReAct 循环实现 |
 | `MemoryCompressionService` | 对话记忆压缩 |
 | `LongTermMemoryService` | 用户长期记忆提取 |
-| `KnowledgeService` | RAG 知识检索 |
+| `KnowledgeService` | RAG 知识检索（多路召回 + RRF 融合） |
+| `TextSplitter` | 递归语义分块器 |
 
 ## 🚀 快速开始
 
@@ -172,19 +176,22 @@ TripAgent/
 ├── trip-agent/                    # 主项目（MCP Client）
 │   ├── src/main/java/com/tripagent/
 │   │   ├── agent/                 # Agent 核心
-│   │   │   ├── core/             # 基础组件
+│   │   │   ├── core/             # 基础组件（ReAct、LlmClient、意图识别等）
 │   │   │   ├── planning/         # 规划代理
 │   │   │   └── execution/        # 执行代理
 │   │   ├── controller/           # REST 控制器
 │   │   ├── service/              # 业务服务
 │   │   │   └── memory/           # 记忆服务
 │   │   ├── knowledge/            # RAG 知识服务
+│   │   │   ├── chunk/            # 文档分块（递归语义分块器）
+│   │   │   └── retrieve/         # 多路召回（语义 + BM25 + RRF 融合）
 │   │   ├── model/                # 数据模型
 │   │   ├── repository/           # 数据访问
-│   │   ├── config/               # 配置类
+│   │   ├── config/               # 配置类（@ConfigurationProperties）
 │   │   ├── exception/            # 异常处理
 │   │   └── utils/                # 工具类
 │   └── src/main/resources/
+│       ├── application.yml        # 主配置（环境变量）
 │       ├── application.yml.example
 │       ├── knowledge/            # 知识库文档
 │       └── db/migration/         # 数据库迁移
@@ -219,8 +226,11 @@ Agent 使用 ReAct（Reasoning + Acting）循环：
 ### RAG 知识增强
 
 集成本地人攻略知识库，提供更接地气的旅行建议：
-- 使用 pgvector + 千问 Embedding 进行向量检索
-- 知识文档自动分块、向量化、存储
+- **递归语义分块**：按标题→段落→句子→固定字符递归切分，保留语义完整性
+- **多路召回**：语义向量检索 + BM25 关键词检索，双路互补
+- **RRF 融合排序**：Reciprocal Rank Fusion 算法融合多路结果
+- **意图识别前置**：智能判断用户意图，无关查询自动跳过 RAG，节省延迟
+- 使用 pgvector + 千问 Embedding 进行向量存储
 
 ### 工具集成
 

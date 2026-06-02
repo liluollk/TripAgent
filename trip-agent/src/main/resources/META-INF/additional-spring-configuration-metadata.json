@@ -1,0 +1,48 @@
+{
+  "properties": [
+    {
+      "name": "spring.ai.tools.enabled",
+      "type": "java.lang.Boolean",
+      "description": "启用 Spring AI 工具调用功能",
+      "defaultValue": true
+    },
+    {
+      "name": "spring.ai.chat.memory.repository.jdbc.initialize-schema",
+      "type": "java.lang.Boolean",
+      "description": "是否自动初始化聊天记忆数据库表结构",
+      "defaultValue": false
+    },
+    {
+      "name": "spring.ai.mcp.client.enabled",
+      "type": "java.lang.Boolean",
+      "description": "启用 MCP 客户端",
+      "defaultValue": true
+    },
+    {
+      "name": "spring.ai.mcp.client.name",
+      "type": "java.lang.String",
+      "description": "MCP 客户端名称",
+      "defaultValue": "spring-ai-mcp-client"
+    },
+    {
+      "name": "spring.ai.mcp.client.version",
+      "type": "java.lang.String",
+      "description": "MCP 客户端版本"
+    },
+    {
+      "name": "spring.ai.mcp.client.request-timeout",
+      "type": "java.time.Duration",
+      "description": "MCP 请求超时时间"
+    },
+    {
+      "name": "spring.ai.mcp.client.type",
+      "type": "java.lang.String",
+      "description": "MCP 客户端类型 (SYNC/ASYNC)"
+    },
+    {
+      "name": "spring.ai.mcp.client.streamable-http.connections",
+      "type": "java.util.Map",
+      "description": "Streamable HTTP 连接配置"
+    }
+  ]
+}

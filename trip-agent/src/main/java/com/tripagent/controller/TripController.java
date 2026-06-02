@@ -51,14 +51,6 @@ public class TripController {
     public SseEmitter chat(@Valid @RequestBody ChatRequest request) {
         log.info("Received chat request from user: {}", request.getUserId());
 
-        // Manual validation for SSE endpoint (Spring validation may not work properly with SseEmitter)
-        if (request.getUserId() == null || request.getUserId().isBlank()) {
-            throw new IllegalArgumentException("用户ID不能为空");
-        }
-        if (request.getMessage() == null || request.getMessage().isBlank()) {
-            throw new IllegalArgumentException("消息内容不能为空");
-        }
-
         // Generate session ID if not provided
         final String finalSessionId;
         if (request.getSessionId() == null || request.getSessionId().isEmpty()) {

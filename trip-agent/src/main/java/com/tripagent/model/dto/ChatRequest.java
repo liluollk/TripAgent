@@ -2,6 +2,7 @@ package com.tripagent.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -28,6 +29,7 @@ public class ChatRequest {
      * User message
      */
     @NotBlank(message = "消息内容不能为空")
+    @Size(max = 2000, message = "消息内容不能超过2000字")
     @Schema(description = "用户消息内容", example = "3天成都旅行，预算5000，想吃火锅看熊猫", requiredMode = Schema.RequiredMode.REQUIRED)
     private String message;
 }

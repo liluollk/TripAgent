@@ -81,8 +81,8 @@ public class SseEventEmitter {
             log.debug("Sent event to session {}: {} - {}", sessionId, eventType, data);
         } catch (IOException e) {
             log.error("Failed to send event to session: {}", sessionId, e);
-            emitters.remove(sessionId);
             wrapper.emitter().completeWithError(e);
+            emitters.remove(sessionId);
         }
     }
 
@@ -153,16 +153,16 @@ public class SseEventEmitter {
         long now = System.currentTimeMillis();
         int cleaned = 0;
 
-        for (Map.Entry<String, EmitterWrapper> entry : emitters.entrySet()) {
+        // 使用 removeIf 避免遍历中修改 ConcurrentHashMap 的问题
+        var iterator = emitters.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
             if (now - entry.getValue().createdAt() > MAX_EMITTER_LIFETIME_MS) {
-                String sessionId = entry.getKey();
-                EmitterWrapper wrapper = emitters.remove(sessionId);
-                if (wrapper != null) {
-                    wrapper.emitter().complete();
-                    cleaned++;
-                    log.warn("Cleaned up stale SSE emitter for session: {} (age: {}ms)",
-                            sessionId, now - wrapper.createdAt());
-                }
+                entry.getValue().emitter().complete();
+                iterator.remove();
+                cleaned++;
+                log.warn("Cleaned up stale SSE emitter for session: {} (age: {}ms)",
+                        entry.getKey(), now - entry.getValue().createdAt());
             }
         }
 
